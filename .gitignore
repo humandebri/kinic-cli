@@ -1,0 +1,9 @@
+
+# dfx temporary files
+.dfx/
+
+# rust
+target/
+
+# environment variables
+.env
