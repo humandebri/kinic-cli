@@ -29,6 +29,7 @@ pub enum Command {
         name: String,
     },
     Create(CreateArgs),
+    List(ListArgs),
 }
 
 #[derive(Args, Debug)]
@@ -39,3 +40,6 @@ pub struct CreateArgs {
     #[arg(long)]
     pub description: String,
 }
+
+#[derive(Args, Debug)]
+pub struct ListArgs {}

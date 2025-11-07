@@ -1,5 +1,6 @@
 mod agent;
 mod cli;
+pub(crate) mod clients;
 mod commands;
 
 use anyhow::Result;
@@ -10,7 +11,7 @@ use tracing_subscriber::fmt;
 use crate::{
     agent::AgentFactory,
     cli::Cli,
-    commands::{run_command, CommandContext},
+    commands::{CommandContext, run_command},
 };
 
 pub async fn run() -> Result<()> {

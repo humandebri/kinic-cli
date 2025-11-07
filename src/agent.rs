@@ -2,9 +2,9 @@ use std::io::Cursor;
 
 use anyhow::Result;
 use ic_agent::{
+    Agent,
     export::reqwest::Url,
     identity::{BasicIdentity, Secp256k1Identity},
-    Agent,
 };
 
 const KEYRING_SERVICE_NAME: &str = "internet_computer_identities";
