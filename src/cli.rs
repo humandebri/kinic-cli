@@ -30,6 +30,7 @@ pub enum Command {
     },
     Create(CreateArgs),
     List(ListArgs),
+    Insert(InsertArgs),
 }
 
 #[derive(Args, Debug)]
@@ -43,3 +44,12 @@ pub struct CreateArgs {
 
 #[derive(Args, Debug)]
 pub struct ListArgs {}
+
+#[derive(Args, Debug)]
+pub struct InsertArgs {
+    #[arg(long)]
+    pub memory_id: String,
+
+    #[arg(long)]
+    pub text: String,
+}

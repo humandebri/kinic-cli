@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::clients::{LAUNCHER_CANISTER, LEDGER_CANISTER};
 
-const DEFAULT_MEMORY_ALLOCATION: u64 = 1024;
+const DEFAULT_VECTOR_DIM: u64 = 1024;
 const APPROVAL_TTL_NS: u64 = 10 * 60 * 1_000_000_000;
 
 pub struct LauncherClient {
@@ -104,7 +104,7 @@ impl LauncherClient {
 
 fn encode_deploy_args(name: &str, description: &str) -> Result<Vec<u8>> {
     let payload = format!("{{name: {name}, description: {description}}}");
-    Ok(candid::encode_args((payload, DEFAULT_MEMORY_ALLOCATION))?)
+    Ok(candid::encode_args((payload, DEFAULT_VECTOR_DIM))?)
 }
 
 #[derive(CandidType, Deserialize, Debug, Error)]
