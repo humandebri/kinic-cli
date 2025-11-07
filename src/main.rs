@@ -1,7 +1,8 @@
 use std::process::ExitCode;
 
-fn main() -> ExitCode {
-    if let Err(e) = kinic_cli::run() {
+#[tokio::main]
+async fn main() -> ExitCode {
+    if let Err(e) = kinic_cli::run().await {
         eprintln!("{e:?}");
         return ExitCode::from(1);
     }
