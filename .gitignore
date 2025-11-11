@@ -14,3 +14,16 @@ dist/
 build/
 *.egg-info/
 __pycache__/
+*.so
+*.pyd
+*.dylib
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# editor / OS cruft
+.DS_Store
+.idea/
+.vscode/
