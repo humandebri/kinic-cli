@@ -3,7 +3,9 @@ Cargo.toml
 MANIFEST.in
 README.md
 pyproject.toml
+python/examples/memories_demo.py
 python/kinic_py/__init__.py
+python/kinic_py/memories.py
 python/kinic_py.egg-info/PKG-INFO
 python/kinic_py.egg-info/SOURCES.txt
 python/kinic_py.egg-info/dependency_links.txt
@@ -13,6 +15,7 @@ rust/cli.rs
 rust/cli_defs.rs
 rust/embedding.rs
 rust/lib.rs
+rust/python.rs
 rust/clients/launcher.rs
 rust/clients/memory.rs
 rust/clients/mod.rs

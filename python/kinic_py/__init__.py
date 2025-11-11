@@ -1,13 +1,25 @@
-"""Python wrapper package for the Kinic Rust extension."""
+"""Pythonic API for the Kinic memory tooling."""
 
 from __future__ import annotations
 
 from . import _lib as native
+from .memories import (
+    KinicMemories,
+    create_memory,
+    insert_file,
+    insert_text,
+    list_memories,
+    search_memories,
+)
 
-__all__ = ["greet", "native", "__version__"]
+__all__ = [
+    "KinicMemories",
+    "create_memory",
+    "insert_file",
+    "insert_text",
+    "list_memories",
+    "search_memories",
+    "native",
+    "__version__",
+]
 __version__ = "0.1.0"
-
-
-def greet() -> str:
-    """Call the demo greeting exported from the Rust module."""
-    return native.greet()
