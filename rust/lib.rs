@@ -1,4 +1,5 @@
 pub mod agent;
+#[path = "cli_defs.rs"]
 pub mod cli;
 pub(crate) mod clients;
 mod commands;
