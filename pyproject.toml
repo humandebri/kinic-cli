@@ -19,9 +19,9 @@ classifiers = [
 ]
 dependencies = []
 
-[project.urls]
-Homepage = "https://github.com/kiniclabs/kinic-cli"
-Issues = "https://github.com/kiniclabs/kinic-cli/issues"
+# [project.urls]
+# Homepage = "https://github.com/kiniclabs/kinic-cli"
+# Issues = "https://github.com/kiniclabs/kinic-cli/issues"
 
 [tool.setuptools]
 package-dir = { "" = "python" }
