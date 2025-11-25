@@ -27,7 +27,7 @@ Kinic solves this with **zkTAM** (zero-knowledge Trustless Agentic Memory):
 - ✅ **Owned**: Your memory lives on-chain in WASM canisters you control
 - ✅ **Portable**: Move your agent's memory between any infrastructure
 
-By default we use the Internet Computer as DA layer — with vetKey encryption and cross-chain signing (tECDSA). You can run it locally or on any wasm based DA layer. In future versions full zkML support will be enabled allowing for trustless verificaiton on nearly all blockchains.
+By default we use the Internet Computer as the DA layer—with VetKey encryption and cross-chain signing (tECDSA). You can run it locally or on any WASM-based DA layer. In future versions, full zkML support will be enabled, allowing for trustless verification on nearly all blockchains.
 
 ---
 
@@ -37,6 +37,8 @@ By default we use the Internet Computer as DA layer — with vetKey encryption a
 - **dfx 0.28+** with the `arm64` build on Apple Silicon (macOS)
 - **KINIC tokens**: At least 1 KINIC to deploy memory canisters
 - **dfx identity**: Create or select one with `dfx identity new <name>` or `dfx identity use <name>`
+
+> Note: Do not use the `default` identity with `kinic-cli`—it always fails. Use a named identity instead.
 
 Optional: If you need local launcher/ledger/II canisters, run `./scripts/setup.sh` after `dfx start --clean --background`.
 
@@ -66,7 +68,17 @@ uv pip install -e .
 
 ## Quickstart
 
-### 1. Check Your Balance
+### 1. Create or Select Your Identity
+
+Create (or switch to) a dfx identity before using the library:
+
+```bash
+dfx identity new <name>
+# or
+dfx identity use <name>
+```
+
+### 2. Check Your Balance
 
 Make sure you have at least 1 KINIC token:
 ```bash
@@ -82,7 +94,7 @@ dfx canister --ic call 73mez-iiaaa-aaaaq-aaasq-cai icrc1_balance_of '(record {ow
 
 Or purchase them from MEXC or swap at https://app.icpswap.com/ . 
 
-### 2. Deploy and Use Memory
+### 3. Deploy and Use Memory
 ```python
 from kinic_py import KinicMemories
 
@@ -152,14 +164,14 @@ Run the complete example at `python/examples/memories_demo.py`:
 ```bash
 # With existing memory
 uv run python python/examples/memories_demo.py \
-  --identity default \
+  --identity <name> \
   --memory-id 
 
 # Deploy new memory
-uv run python python/examples/memories_demo.py --identity default
+uv run python python/examples/memories_demo.py --identity <name>
 
 # Use mainnet
-uv run python python/examples/memories_demo.py --identity default --ic
+uv run python python/examples/memories_demo.py --identity <name> --ic
 ```
 
 ---
