@@ -10,29 +10,40 @@ Made with ❤️ by [ICME Labs](https://blog.icme.io/).
 
 ## Prerequisites
 - Python 3.9+
-- Rust toolchain (Cargo builds the PyO3 extension)
-- `dfx 0.28+` with the `arm64` build on Apple Silicon if you are using macOS.
-- make a dfx identity by `dfx identity new <name>`
-- A running replica for local work (`dfx start --clean --background`) or `--ic`/`ic=True` to talk to mainnet
+- `dfx 0.28+` with the `arm64` build on Apple Silicon if you are using macOS
+- Create or select a dfx identity: `dfx identity new <name>` or `dfx identity use <name>`
 
-If you need the local launcher/ledger/II canisters, run `./scripts/setup.sh` from the repo root before using the wrapper.
+If you need the local launcher/ledger/II canisters, run `./scripts/setup.sh`  after `dfx start --clean --background` from the repo root before using the wrapper.
 
-## Installation
-Install from the repo root so the Rust extension builds with the `python-bindings` feature:
+## Quickstart (PyPI install)
+Install the published wheel from PyPI (macOS builds available):
+
 
 ```bash
-# using uv
-uv pip install -e .
+pip install kinic-py
 
-# or vanilla pip
-pip install -e .
+# with uv
+uv pip install kinic-py
 ```
 
+> Note: Published wheels are currently macOS-only. On other platforms, `pip` will fall back to building from source, which requires a Rust toolchain and a working `pip install -e .` setup.
+
 ## Quickstart
+
+Make sure the principal you’re using has enough KINIC (at least 1) to pay for deployment. Check your principal and balance:
+
+```bash
+dfx --identity <name> identity get-principal
+dfx canister --ic call 73mez-iiaaa-aaaaq-aaasq-cai icrc1_balance_of '(record {owner = principal "<your principal>"; subaccount = null; }, )'
+# Example: (100000000 : nat) == 1 KINIC
+```
+
+Sample code to deploy a new memory and insert text:
+
 ```python
 from kinic_py import KinicMemories
 
-km = KinicMemories("default")  # dfx identity name; ic=True for mainnet
+km = KinicMemories("default")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("default", ic=True)
 memory_id = km.create("Python demo", "Created via kinic_py")
 
 km.insert_markdown(memory_id, "notes", "# Hello Kinic!\n\nInserted from Python.")
@@ -59,6 +70,11 @@ uv run python python/examples/memories_demo.py --identity default --memory-id <c
 ```
 
 Omit `--memory-id` to deploy a new memory. Add `--ic` to talk to mainnet. The script prints search results and any inserted chunk count.
+
+## Build from source
+- Requires Rust toolchain (for the PyO3 extension).
+- Editable install: `pip install -e .` (or `uv pip install -e .`).
+- Wheel packaging steps: see `docs/python-wheel.md` for build, smoke-test, and upload commands.
 
 ## Building and publishing the wheel
 
