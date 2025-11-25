@@ -40,7 +40,7 @@ def main() -> None:
         print(f"- {principal}")
 
     if args.memory_id:
-        inserted = km.insert_text(args.memory_id, args.tag, args.text)
+        inserted = km.insert_markdown(args.memory_id, args.tag, args.text)
         print(f"Inserted {inserted} chunks into {args.memory_id}")
 
 

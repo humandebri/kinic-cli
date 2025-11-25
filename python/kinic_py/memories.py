@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import List, Sequence, Tuple
 
 from . import _lib as native
@@ -24,13 +25,23 @@ class KinicMemories:
         """List deployed memories."""
         return list_memories(self.identity, ic=self.ic)
 
-    def insert_text(self, memory_id: str, tag: str, text: str) -> int:
+    def insert_markdown(self, memory_id: str, tag: str, text: str) -> int:
         """Insert markdown text directly."""
-        return insert_text(self.identity, memory_id, tag, text, ic=self.ic)
+        return insert_markdown(self.identity, memory_id, tag, text, ic=self.ic)
+
+    def insert_markdown_file(self, memory_id: str, tag: str, path: str) -> int:
+        """Insert markdown loaded from disk."""
+        return insert_markdown_file(self.identity, memory_id, tag, path, ic=self.ic)
+
+    def insert_text(self, memory_id: str, tag: str, text: str) -> int:
+        """Deprecated: use insert_markdown instead."""
+        warnings.warn("insert_text is deprecated; use insert_markdown", DeprecationWarning, stacklevel=2)
+        return self.insert_markdown(memory_id, tag, text)
 
     def insert_file(self, memory_id: str, tag: str, path: str) -> int:
-        """Insert markdown loaded from disk."""
-        return insert_file(self.identity, memory_id, tag, path, ic=self.ic)
+        """Deprecated: use insert_markdown_file instead."""
+        warnings.warn("insert_file is deprecated; use insert_markdown_file", DeprecationWarning, stacklevel=2)
+        return self.insert_markdown_file(memory_id, tag, path)
 
     def search(self, memory_id: str, query: str) -> ScoreResult:
         """Search the specified memory canister."""
@@ -51,7 +62,7 @@ def list_memories(identity: str, *, ic: bool | None = None) -> List[str]:
     return native.list_memories(identity, ic=ic)
 
 
-def insert_text(
+def insert_markdown(
     identity: str,
     memory_id: str,
     tag: str,
@@ -62,7 +73,7 @@ def insert_text(
     return native.insert_memory(identity, memory_id, tag, text=text, ic=ic)
 
 
-def insert_file(
+def insert_markdown_file(
     identity: str,
     memory_id: str,
     tag: str,
@@ -71,6 +82,30 @@ def insert_file(
     ic: bool | None = None,
 ) -> int:
     return native.insert_memory(identity, memory_id, tag, file_path=path, ic=ic)
+
+
+def insert_text(
+    identity: str,
+    memory_id: str,
+    tag: str,
+    text: str,
+    *,
+    ic: bool | None = None,
+) -> int:
+    warnings.warn("insert_text is deprecated; use insert_markdown", DeprecationWarning, stacklevel=2)
+    return insert_markdown(identity, memory_id, tag, text, ic=ic)
+
+
+def insert_file(
+    identity: str,
+    memory_id: str,
+    tag: str,
+    path: str,
+    *,
+    ic: bool | None = None,
+) -> int:
+    warnings.warn("insert_file is deprecated; use insert_markdown_file", DeprecationWarning, stacklevel=2)
+    return insert_markdown_file(identity, memory_id, tag, path, ic=ic)
 
 
 def search_memories(
