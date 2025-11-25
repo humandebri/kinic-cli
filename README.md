@@ -43,7 +43,7 @@ Sample code to deploy a new memory and insert text:
 ```python
 from kinic_py import KinicMemories
 
-km = KinicMemories("default")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("default", ic=True)
+km = KinicMemories("<name>")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("<name>", ic=True)
 memory_id = km.create("Python demo", "Created via kinic_py")
 
 km.insert_markdown(memory_id, "notes", "# Hello Kinic!\n\nInserted from Python.")
