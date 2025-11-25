@@ -59,3 +59,7 @@ uv run python python/examples/memories_demo.py --identity default --memory-id <c
 ```
 
 Omit `--memory-id` to deploy a new memory. Add `--ic` to talk to mainnet. The script prints search results and any inserted chunk count.
+
+## Building and publishing the wheel
+
+See `docs/python-wheel.md` for packaging steps (build, smoke-test, and upload to PyPI).
