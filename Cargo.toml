@@ -4,3 +4,41 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
+candid = "0.10.20"
+clap = { version = "4.5.51", features = ["derive"] }
+hex = "0.4.3"
+ic-agent = "0.44.3"
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "linux-native",
+    "sync-secret-service",
+    "vendored",
+] }
+pem = "3.0.6"
+# security-framework = "3.5.1"
+# security-framework-sys = "2.15.0"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros"] }
+icrc-ledger-types = "0.1.12"
+serde = { version =  "1.0", features = ["derive"] }
+thiserror = "2.0.17"
+reqwest = { version = "0.12.7", default-features = false, features = ["json", "rustls-tls"] }
+dotenvy = "0.15.7"
+serde_json = "1.0.145"
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py38"], optional = true }
+
+[features]
+default = []
+python-bindings = ["pyo3"]
+
+[lib]
+name = "_lib"
+path = "rust/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "kinic-cli"
+path = "rust/cli.rs"
