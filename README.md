@@ -209,7 +209,7 @@ See `docs/python-wheel.md` for packaging, testing, and PyPI upload instructions.
 
 ## Get Production Tokens
 
-Ready to deploy on mainnet? **DM https://x.com/wyatt_benno for KINIC prod tokens** and start building summons with real memory.
+Ready to deploy on mainnet? **DM https://x.com/wyatt_benno for KINIC prod tokens** and start building agents with trustless memory.
 
 ---
 
