@@ -142,6 +142,11 @@ Embed and store markdown from a file.
 
 **Returns:** Number of chunks inserted
 
+#### `insert_pdf_file(memory_id: str, tag: str, path: str) -> int`
+Convert a PDF to markdown and insert it.
+
+**Returns:** Number of chunks inserted
+
 #### `search(memory_id: str, query: str) -> List[Tuple[float, str]]`
 Search memories with semantic similarity.
 
@@ -154,6 +159,8 @@ Stateless alternatives available:
 - `list_memories(identity, ic=False)`
 - `insert_markdown(identity, memory_id, tag, text, ic=False)`
 - `insert_markdown_file(identity, memory_id, tag, path, ic=False)`
+- `insert_pdf_file(identity, memory_id, tag, path, ic=False)`
+- `insert_pdf(identity, memory_id, tag, path, ic=False)`
 - `search_memories(identity, memory_id, query, ic=False)`
 
 ---
