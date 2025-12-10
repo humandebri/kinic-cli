@@ -11,6 +11,7 @@ pub mod convert_pdf;
 pub mod search;
 pub mod update;
 pub mod balance;
+pub mod ask_ai;
 
 #[derive(Clone)]
 pub struct CommandContext {
@@ -28,5 +29,6 @@ pub async fn run_command(command: Command, ctx: CommandContext) -> Result<()> {
         Command::Config(args) => config::handle(args, &ctx).await,
         Command::Update(args) => update::handle(args, &ctx).await,
         Command::Balance(args) => balance::handle(args, &ctx).await,
+        Command::AskAi(args) => ask_ai::handle(args, &ctx).await,
     }
 }

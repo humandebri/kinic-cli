@@ -135,6 +135,16 @@ Query the ledger for the current identity’s balance (base units):
 cargo run -- --identity alice balance
 ```
 
+### Ask AI (LLM placeholder)
+
+Runs a search and prepares context for an AI answer (LLM not implemented yet):
+
+```bash
+cargo run -- --identity alice ask-ai \
+  --memory-id yta6k-5x777-77774-aaaaa-cai \
+  --query "What did we say about quarterly goals?"
+```
+
 ## Troubleshooting
 
 - **Replica already running**: stop lingering replicas with `dfx stop` before restarting.

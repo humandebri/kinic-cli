@@ -55,6 +55,8 @@ pub enum Command {
     Update(UpdateArgs),
     #[command(about = "Check KINIC token balance for the current identity")]
     Balance(BalanceArgs),
+    #[command(about = "Ask Kinic AI using memory search results (LLM placeholder)")]
+    AskAi(AskAiArgs),
 }
 
 #[derive(Args, Debug)]
@@ -158,3 +160,16 @@ pub struct UpdateArgs {
 
 #[derive(Args, Debug)]
 pub struct BalanceArgs {}
+
+#[derive(Args, Debug)]
+pub struct AskAiArgs {
+    #[arg(
+        long,
+        required = true,
+        help = "Principal of the memory canister to search"
+    )]
+    pub memory_id: String,
+
+    #[arg(long, required = true, help = "Query text to embed and search")]
+    pub query: String,
+}
