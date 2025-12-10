@@ -157,7 +157,8 @@ Runs a search and prepares context for an AI answer (LLM not implemented yet):
 ```bash
 cargo run -- --identity <name> ask-ai \
   --memory-id <memory canister id> \
-  --query "What did we say about quarterly goals?"
+  --query "What did we say about quarterly goals?" \
+  --top-k 3
 ```
 
 ---

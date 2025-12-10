@@ -26,12 +26,18 @@ pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
         "ask-ai search completed"
     );
 
+    let limit = args.top_k.max(1);
+
     println!("ask-ai (LLM placeholder) for \"{}\":", args.query);
     if results.is_empty() {
         println!("- No context found to answer the query.");
     } else {
-        println!("- Retrieved {} context entries for LLM consumption.", results.len());
-        for (score, text) in results.iter().take(5) {
+        println!(
+            "- Retrieved {} context entries for LLM consumption (showing top {}).",
+            results.len(),
+            limit.min(results.len())
+        );
+        for (score, text) in results.iter().take(limit) {
             println!("  - [{score:.4}] {text}");
         }
         println!("\nLLM response: <not implemented>");

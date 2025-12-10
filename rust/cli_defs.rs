@@ -172,4 +172,12 @@ pub struct AskAiArgs {
 
     #[arg(long, required = true, help = "Query text to embed and search")]
     pub query: String,
+
+    #[arg(
+        long,
+        default_value_t = 5,
+        value_name = "N",
+        help = "Number of top search results to include in the LLM prompt"
+    )]
+    pub top_k: usize,
 }

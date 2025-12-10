@@ -142,7 +142,8 @@ Runs a search and prepares context for an AI answer (LLM not implemented yet):
 ```bash
 cargo run -- --identity alice ask-ai \
   --memory-id yta6k-5x777-77774-aaaaa-cai \
-  --query "What did we say about quarterly goals?"
+  --query "What did we say about quarterly goals?" \
+  --top-k 3
 ```
 
 ## Troubleshooting
