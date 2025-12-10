@@ -2,12 +2,13 @@ use std::cmp::Ordering;
 
 use anyhow::{Context, Result};
 use ic_agent::export::Principal;
+use reqwest::Client;
 use tracing::info;
 
 use crate::{
     cli::AskAiArgs,
     clients::memory::MemoryClient,
-    embedding::fetch_embedding,
+    embedding::{fetch_embedding, embedding_base_url},
 };
 
 use super::CommandContext;
@@ -17,6 +18,7 @@ const MAX_RESULTS: usize = 5;
 const MAX_HITS_PER_DOC: usize = 6;
 const MAX_HIT_LEN: usize = 600;
 const MAX_FULL_LEN: usize = 4096;
+const CHAT_PATH: &str = "/chat";
 
 pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
     let client = build_memory_client(&args.memory_id, ctx).await?;
@@ -42,7 +44,9 @@ pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
     } else {
         println!("- Generated prompt for LLM (showing top {limit} search results).");
         println!("{prompt}");
-        println!("\nLLM response: <not implemented>");
+
+        let llm_response = call_llm(&prompt).await?;
+        println!("\nLLM response:\n{llm_response}");
     }
 
     Ok(())
@@ -53,6 +57,48 @@ async fn build_memory_client(id: &str, ctx: &CommandContext) -> Result<MemoryCli
     let memory =
         Principal::from_text(id).context("Failed to parse canister id for ask-ai command")?;
     Ok(MemoryClient::new(agent, memory))
+}
+
+async fn call_llm(prompt: &str) -> Result<String> {
+    let url = format!("{}{}", embedding_base_url(), CHAT_PATH);
+    let response = Client::new()
+        .post(url)
+        .json(&ChatRequest { message: prompt })
+        .send()
+        .await
+        .context("Failed to call chat endpoint")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("chat endpoint returned {status}: {body}");
+    }
+
+    let body = response
+        .text()
+        .await
+        .context("Failed to read chat response")?;
+
+    let mut acc = String::new();
+    for line in body.lines() {
+        if let Some(stripped) = line.strip_prefix("data:") {
+            let payload = stripped.trim();
+            if payload.is_empty() {
+                continue;
+            }
+            if let Ok(chunk) = serde_json::from_str::<ChatChunk>(payload) {
+                if let Some(content) = chunk.content {
+                    acc.push_str(&content);
+                }
+            }
+        }
+    }
+
+    if acc.is_empty() {
+        acc = body;
+    }
+
+    Ok(acc)
 }
 
 #[derive(Clone, Debug)]
@@ -68,6 +114,16 @@ struct SearchResult {
     title: String,
     score: f32,
     hits: Vec<SearchHit>,
+}
+
+#[derive(serde::Serialize)]
+struct ChatRequest<'a> {
+    message: &'a str,
+}
+
+#[derive(serde::Deserialize)]
+struct ChatChunk {
+    content: Option<String>,
 }
 
 fn build_prompt(query: &str, raw_results: &[(f32, String)], top_k: usize, language: &str) -> String {
