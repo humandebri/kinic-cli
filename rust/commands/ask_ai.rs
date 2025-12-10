@@ -12,6 +12,12 @@ use crate::{
 
 use super::CommandContext;
 
+const MAX_QUERY_LEN: usize = 150;
+const MAX_RESULTS: usize = 5;
+const MAX_HITS_PER_DOC: usize = 6;
+const MAX_HIT_LEN: usize = 600;
+const MAX_FULL_LEN: usize = 4096;
+
 pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
     let client = build_memory_client(&args.memory_id, ctx).await?;
     let embedding = fetch_embedding(&args.query).await?;
@@ -27,19 +33,15 @@ pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
     );
 
     let limit = args.top_k.max(1);
+    let prompt = build_prompt(&args.query, &results, limit, "en");
 
     println!("ask-ai (LLM placeholder) for \"{}\":", args.query);
     if results.is_empty() {
         println!("- No context found to answer the query.");
+        println!("\nLLM response: <not implemented>");
     } else {
-        println!(
-            "- Retrieved {} context entries for LLM consumption (showing top {}).",
-            results.len(),
-            limit.min(results.len())
-        );
-        for (score, text) in results.iter().take(limit) {
-            println!("  - [{score:.4}] {text}");
-        }
+        println!("- Generated prompt for LLM (showing top {limit} search results).");
+        println!("{prompt}");
         println!("\nLLM response: <not implemented>");
     }
 
@@ -51,4 +53,161 @@ async fn build_memory_client(id: &str, ctx: &CommandContext) -> Result<MemoryCli
     let memory =
         Principal::from_text(id).context("Failed to parse canister id for ask-ai command")?;
     Ok(MemoryClient::new(agent, memory))
+}
+
+#[derive(Clone, Debug)]
+struct SearchHit {
+    index: usize,
+    score: f32,
+    content: String,
+}
+
+#[derive(Clone, Debug)]
+struct SearchResult {
+    url: String,
+    title: String,
+    score: f32,
+    hits: Vec<SearchHit>,
+}
+
+fn build_prompt(query: &str, raw_results: &[(f32, String)], top_k: usize, language: &str) -> String {
+    let clipped_query = clip(query, MAX_QUERY_LEN);
+
+    let docs: Vec<SearchResult> = raw_results
+        .iter()
+        .take(top_k.min(MAX_RESULTS))
+        .enumerate()
+        .map(|(i, (score, text))| SearchResult {
+            url: format!("memory://{}", i + 1),
+            title: clip(text, 80),
+            score: *score,
+            hits: vec![SearchHit {
+                index: 0,
+                score: *score,
+                content: text.clone(),
+            }],
+        })
+        .collect();
+
+    ask_ai_prompt(&clipped_query, &docs, language)
+}
+
+fn clip(s: &str, max: usize) -> String {
+    let clipped: String = s.chars().take(max).collect();
+    if s.chars().count() > max {
+        format!("{clipped}...")
+    } else {
+        clipped
+    }
+}
+
+fn strip_tags(s: &str) -> String {
+    s.replace("<thinking>", "")
+        .replace("</thinking>", "")
+        .replace("<answer>", "")
+        .replace("</answer>", "")
+        .replace("<THINKING>", "")
+        .replace("</THINKING>", "")
+        .replace("<ANSWER>", "")
+        .replace("</ANSWER>", "")
+}
+
+fn get_language_instruction(lang_code: &str) -> &'static str {
+    match lang_code {
+        "ja" => "日本語 (Japanese)",
+        "ko" => "한국어 (Korean)",
+        "zh" => "中文 (Chinese)",
+        "es" => "Español (Spanish)",
+        "fr" => "Français (French)",
+        "de" => "Deutsch (German)",
+        "it" => "Italiano (Italian)",
+        "pt" => "Português (Portuguese)",
+        "ru" => "Русский (Russian)",
+        _ => "English",
+    }
+}
+
+fn ask_ai_prompt(query: &str, results: &[SearchResult], language: &str) -> String {
+    let language_instruction = get_language_instruction(language);
+
+    let top_results = results.iter().take(MAX_RESULTS).collect::<Vec<_>>();
+
+    let formatted_docs = top_results
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let hits_xml = r
+                .hits
+                .iter()
+                .take(MAX_HITS_PER_DOC)
+                .map(|h| {
+                    format!(
+                        "<hit index=\"{}\" score=\"{}\">\n{}\n</hit>",
+                        h.index,
+                        h.score,
+                        strip_tags(&clip(&h.content, MAX_HIT_LEN))
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            format!(
+                "<doc index=\"{index}\">\n<url>{url}</url>\n<title>{title}</title>\n<score>{score}</score>\n<hits>\n{hits}\n</hits>\n</doc>",
+                index = i + 1,
+                url = r.url,
+                title = strip_tags(&r.title),
+                score = r.score,
+                hits = if hits_xml.is_empty() { r#"<hit index="0">(no hits)</hit>"#.to_string() } else { hits_xml },
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    let docs_block = if formatted_docs.is_empty() {
+        r#"<doc index="1"><url></url><title></title><hits><hit index="0">(no hits)</hit></hits></doc>"#
+            .to_string()
+    } else {
+        formatted_docs
+    };
+
+    let full_document = strip_tags(&clip(
+        &top_results
+            .iter()
+            .flat_map(|r| r.hits.iter().take(MAX_HITS_PER_DOC))
+            .map(|h| h.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n"),
+        MAX_FULL_LEN,
+    ));
+
+    format!(
+        r#"You are an excellent AI assistant that summarizes the content of documents found as search results.
+Summarize the main points concisely, taking into account their relevance to the user's search query.
+
+# Instructions
+- Before responding, please describe your thinking process within the <thinking>...</thinking> tag (keep under 100 words).
+- After thinking, write your final summary within the <answer>...</answer> tag.
+- The summary should be objective and grounded in the documents.
+- Focus on information related to <user_query>, especially considering the content in <docs>.
+- Limit the final summary to 140 words or less.
+- Answer in {language_instruction} in <answer> tag. << IMPORTANT!!
+
+# Input
+
+<user_query>
+{query}
+</user_query>
+
+<docs>
+{docs}
+</docs>
+
+<full_document>
+{full_document}
+</full_document>"#,
+        docs = docs_block,
+        full_document = full_document,
+        language_instruction = language_instruction,
+        query = query,
+    )
 }
