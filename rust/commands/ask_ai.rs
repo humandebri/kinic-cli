@@ -6,6 +6,7 @@ use reqwest::Client;
 use tracing::info;
 
 use crate::{
+    agent::AgentFactory,
     cli::AskAiArgs,
     clients::memory::MemoryClient,
     embedding::{embedding_base_url, fetch_embedding},
@@ -20,42 +21,65 @@ const MAX_HIT_LEN: usize = 600;
 const MAX_FULL_LEN: usize = 4096;
 const CHAT_PATH: &str = "/chat";
 
-pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
-    let client = build_memory_client(&args.memory_id, ctx).await?;
-    let embedding = fetch_embedding(&args.query).await?;
-    let mut results = client.search(embedding).await?;
+pub struct AskAiResult {
+    pub prompt: String,
+    pub response: String,
+    pub context_count: usize,
+    pub top_k_used: usize,
+}
 
-    results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+pub async fn handle(args: AskAiArgs, ctx: &CommandContext) -> Result<()> {
+    let memory =
+        Principal::from_text(&args.memory_id).context("Failed to parse canister id for ask-ai command")?;
+    let result = ask_ai_flow(&ctx.agent_factory, &memory, &args.query, args.top_k, "en").await?;
 
     info!(
-        canister_id = %client.canister_id(),
+        canister_id = %memory,
         query = %args.query,
-        result_count = results.len(),
+        result_count = result.context_count,
         "ask-ai search completed"
     );
 
-    let limit = args.top_k.max(1);
-    let prompt = build_prompt(&args.query, &results, limit, "en");
-
-    println!("ask-ai (LLM placeholder) for \"{}\":", args.query);
-    if results.is_empty() {
+    println!("ask-ai for \"{}\":", args.query);
+    if result.context_count == 0 {
         println!("- No context found to answer the query.");
-        println!("\nLLM response: <not implemented>");
     } else {
-        println!("- Generated prompt for LLM (showing top {limit} search results).");
-        println!("- Thinking...");
-        let llm_response = call_llm(&prompt).await?;
-        println!("\nLLM response:\n{llm_response}");
+        println!(
+            "- Generated prompt for LLM (showing top {}).",
+            result.top_k_used
+        );
+        println!("{}", result.prompt);
     }
+    println!("\nLLM response:\n{}", result.response);
 
     Ok(())
 }
 
-async fn build_memory_client(id: &str, ctx: &CommandContext) -> Result<MemoryClient> {
-    let agent = ctx.agent_factory.build().await?;
-    let memory =
-        Principal::from_text(id).context("Failed to parse canister id for ask-ai command")?;
-    Ok(MemoryClient::new(agent, memory))
+pub async fn ask_ai_flow(
+    agent_factory: &AgentFactory,
+    memory_id: &Principal,
+    query: &str,
+    top_k: usize,
+    language: &str,
+) -> Result<AskAiResult> {
+    let agent = agent_factory.build().await?;
+    let client = MemoryClient::new(agent, memory_id.clone());
+
+    let embedding = fetch_embedding(query).await?;
+    let mut results = client.search(embedding).await?;
+
+    results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+
+    let limit = top_k.max(1);
+    let prompt = build_prompt(query, &results, limit, language);
+    let llm_response = call_llm(&prompt).await?;
+
+    Ok(AskAiResult {
+        prompt,
+        response: llm_response,
+        context_count: results.len(),
+        top_k_used: limit.min(results.len()),
+    })
 }
 
 async fn call_llm(prompt: &str) -> Result<String> {

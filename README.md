@@ -160,6 +160,8 @@ cargo run -- --identity <name> ask-ai \
   --query "What did we say about quarterly goals?" \
   --top-k 3
 ```
+- Uses `EMBEDDING_API_ENDPOINT` (default: `https://api.kinic.io`) and calls `/chat`.
+- Prints the generated prompt and only the `<answer>` portion of the LLM response.
 
 ---
 
@@ -206,6 +208,17 @@ Search memories with semantic similarity.
 
 **Returns:** List of `(score, payload)` tuples sorted by relevance
 
+#### `ask_ai(memory_id: str, query: str, top_k: int | None = None, language: str | None = None) -> Tuple[str, str]`
+Run the Ask AI flow: search, build an LLM prompt, and return `(prompt, answer)` where `answer` is the `<answer>` section from the chat endpoint.
+
+**Parameters:** `top_k` (defaults to 5), `language` code (e.g., `"en"`)
+
+#### `balance() -> Tuple[int, float]`
+Return the current identity’s balance as `(base_units, kinic)`.
+
+#### `update(memory_id: str) -> None`
+Trigger `update_instance` via the launcher for the given memory canister.
+
 ### Module-Level Functions
 
 Stateless alternatives available:
@@ -216,6 +229,9 @@ Stateless alternatives available:
 - `insert_pdf_file(identity, memory_id, tag, path, ic=False)`
 - `insert_pdf(identity, memory_id, tag, path, ic=False)`
 - `search_memories(identity, memory_id, query, ic=False)`
+- `ask_ai(identity, memory_id, query, top_k=None, language=None, ic=False)`
+- `get_balance(identity, ic=False)`
+- `update_instance(identity, memory_id, ic=False)`
 
 ---
 

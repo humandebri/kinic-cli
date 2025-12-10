@@ -1,18 +1,21 @@
 use std::{cmp::Ordering, fs, path::PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{anyhow, Context, Result, bail};
 use ic_agent::export::Principal;
 use serde_json::json;
 
 use crate::{
     agent::AgentFactory,
     clients::{
+        LEDGER_CANISTER,
         launcher::{LauncherClient, State},
         memory::MemoryClient,
     },
     commands::convert_pdf,
+    commands::ask_ai::{ask_ai_flow, AskAiResult},
     embedding::{fetch_embedding, late_chunking},
 };
+use icrc_ledger_types::icrc1::account::Account;
 
 pub(crate) async fn create_memory(
     use_mainnet: bool,
@@ -98,6 +101,68 @@ pub(crate) async fn search_memories(
     let mut results = client.search(embedding).await?;
     results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
     Ok(results)
+}
+
+pub(crate) async fn ask_ai(
+    use_mainnet: bool,
+    identity: String,
+    memory_id: String,
+    query: String,
+    top_k: Option<usize>,
+    language: Option<String>,
+) -> Result<AskAiResult> {
+    let factory = AgentFactory::new(use_mainnet, identity);
+    let memory = Principal::from_text(memory_id).context("Failed to parse memory canister id")?;
+    let top_k = top_k.unwrap_or(5);
+    let language = language.unwrap_or_else(|| "en".to_string());
+    ask_ai_flow(&factory, &memory, &query, top_k, &language).await
+}
+
+pub(crate) async fn balance(use_mainnet: bool, identity: String) -> Result<(u128, f64)> {
+    let factory = AgentFactory::new(use_mainnet, identity);
+    let agent = factory.build().await?;
+    let principal = agent
+        .get_principal()
+        .map_err(|e| anyhow!("Failed to derive principal for current identity: {e}"))?;
+
+    let ledger_id =
+        Principal::from_text(LEDGER_CANISTER).context("Failed to parse ledger canister id")?;
+
+    let account = Account {
+        owner: principal,
+        subaccount: None,
+    };
+
+    let payload = candid::encode_one(account)?;
+    let response = agent
+        .query(&ledger_id, "icrc1_balance_of")
+        .with_arg(payload)
+        .call()
+        .await
+        .context("Failed to query ledger balance")?;
+
+    let balance: u128 =
+        candid::decode_one(&response).context("Failed to decode balance response")?;
+    let kinic = balance as f64 / 10_000_000f64;
+
+    Ok((balance, kinic))
+}
+
+pub(crate) async fn update_instance(
+    use_mainnet: bool,
+    identity: String,
+    memory_id: String,
+) -> Result<()> {
+    let factory = AgentFactory::new(use_mainnet, identity);
+    let agent = factory.build().await?;
+    let client = LauncherClient::new(agent);
+    let pid = Principal::from_text(memory_id)
+        .context("Failed to parse canister id for update_instance")?
+        .to_text();
+    client
+        .update_instance(&pid)
+        .await
+        .context("Failed to update instance via launcher canister")
 }
 
 async fn build_memory_client(

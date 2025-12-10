@@ -146,6 +146,9 @@ cargo run -- --identity alice ask-ai \
   --top-k 3
 ```
 
+- Uses `EMBEDDING_API_ENDPOINT` (default: `https://api.kinic.io`) and calls `/chat`.
+- Prints the generated prompt and only the `<answer>` portion of the LLM response.
+
 ## Troubleshooting
 
 - **Replica already running**: stop lingering replicas with `dfx stop` before restarting.
@@ -155,3 +158,30 @@ cargo run -- --identity alice ask-ai \
 ## Python wrapper
 
 The `kinic_py` package exposes the same memory workflows to Python. See the repository `README.md` for installation, API details, and an example script.
+
+### Python highlights
+
+```python
+from kinic_py import KinicMemories, ask_ai, get_balance, update_instance
+
+km = KinicMemories("<identity>", ic=False)  # set ic=True for mainnet
+memory_id = km.create("Demo", "Created from Python")
+
+# Insert / search
+km.insert_markdown(memory_id, "notes", "# Hello Kinic!")
+results = km.search(memory_id, "Hello")
+
+# Ask AI (returns prompt and the <answer> text only)
+prompt, answer = km.ask_ai(memory_id, "What did we say?", top_k=3, language="en")
+
+# Balance (base units, KINIC)
+base, kinic = km.balance()
+
+# Update a memory canister via launcher
+km.update(memory_id)
+
+# Stateless helpers
+ask_ai("<identity>", memory_id, "Another question")
+get_balance("<identity>")
+update_instance("<identity>", memory_id)
+```

@@ -14,6 +14,9 @@ from .memories import (
     insert_text,
     list_memories,
     search_memories,
+    ask_ai,
+    get_balance,
+    update_instance,
 )
 
 __all__ = [
@@ -27,6 +30,9 @@ __all__ = [
     "insert_text",
     "list_memories",
     "search_memories",
+    "ask_ai",
+    "get_balance",
+    "update_instance",
     "native",
     "__version__",
 ]
