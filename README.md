@@ -145,6 +145,26 @@ for score, payload in km.search(memory_id, "Hello"):
 
 ---
 
+## Configuration Memory Visibility
+
+メモリのVisibilityを設定することができます。例えば、あなたがマーケットに出品していているメモリがあり、メモリへの検索を許可することができます。
+対象は、全員か特定の人物のみ、を指定でき、readerもしくはwriterを設定することができます。
+
+誰でもあなたのメモリを読めるようにしたければ、次のように設定してでください。
+
+```python
+ここに、reader, anonymousで設定する例を入れる
+```
+
+もし、特定の相手と共同でメモリを使いたい場合は、次のようにします。
+
+```python
+ここに、writer, <friend id>で設定する例を入れる
+```
+
+
+---
+
 ## Update a memory canister (CLI)
 
 Trigger the launcher’s `update_instance` for a given memory id:
@@ -238,13 +258,22 @@ Run the complete example at `python/examples/memories_demo.py`:
 # With existing memory
 uv run python python/examples/memories_demo.py \
   --identity <name> \
-  --memory-id 
+  --memory-id <memory canister id>
 
 # Deploy new memory
 uv run python python/examples/memories_demo.py --identity <name>
 
 # Use mainnet
 uv run python python/examples/memories_demo.py --identity <name> --ic
+```
+
+Ask AI example at `python/examples/ask_ai.py`:
+```bash
+uv run python python/examples/ask_ai.py \
+  --identity <name> \
+  --memory-id <memory canister id> \
+  --query "What is xxxx?" \
+  --top-k 3
 ```
 
 ---
