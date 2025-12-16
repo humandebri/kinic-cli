@@ -57,6 +57,10 @@ fn _lib(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(insert_memory, m)?)?;
     m.add_function(wrap_pyfunction!(insert_memory_pdf, m)?)?;
     m.add_function(wrap_pyfunction!(search_memories, m)?)?;
+    m.add_function(wrap_pyfunction!(ask_ai, m)?)?;
+    m.add_function(wrap_pyfunction!(get_balance, m)?)?;
+    m.add_function(wrap_pyfunction!(update_instance, m)?)?;
+    m.add_function(wrap_pyfunction!(add_user, m)?)?;
     Ok(())
 }
 
@@ -156,6 +160,70 @@ fn search_memories(
         identity.to_string(),
         memory_id.to_string(),
         query.to_string(),
+    ))
+}
+
+#[cfg(feature = "python-bindings")]
+#[pyfunction]
+#[pyo3(signature = (identity, memory_id, query, top_k=None, language=None, ic=None))]
+fn ask_ai(
+    identity: &str,
+    memory_id: &str,
+    query: &str,
+    top_k: Option<usize>,
+    language: Option<&str>,
+    ic: Option<bool>,
+) -> PyResult<(String, String)> {
+    let ic = ic.unwrap_or(false);
+    let language = language.map(|s| s.to_string());
+    let result = block_on_py(python::ask_ai(
+        ic,
+        identity.to_string(),
+        memory_id.to_string(),
+        query.to_string(),
+        top_k,
+        language,
+    ))?;
+    Ok((result.prompt, result.response))
+}
+
+#[cfg(feature = "python-bindings")]
+#[pyfunction]
+#[pyo3(signature = (identity, ic=None))]
+fn get_balance(identity: &str, ic: Option<bool>) -> PyResult<(u128, f64)> {
+    let ic = ic.unwrap_or(false);
+    block_on_py(python::balance(ic, identity.to_string()))
+}
+
+#[cfg(feature = "python-bindings")]
+#[pyfunction]
+#[pyo3(signature = (identity, memory_id, ic=None))]
+fn update_instance(identity: &str, memory_id: &str, ic: Option<bool>) -> PyResult<()> {
+    let ic = ic.unwrap_or(false);
+    block_on_py(python::update_instance(
+        ic,
+        identity.to_string(),
+        memory_id.to_string(),
+    ))
+}
+
+#[cfg(feature = "python-bindings")]
+#[pyfunction]
+#[pyo3(signature = (identity, memory_id, user_id, role, ic=None))]
+fn add_user(
+    identity: &str,
+    memory_id: &str,
+    user_id: &str,
+    role: &str,
+    ic: Option<bool>,
+) -> PyResult<()> {
+    let ic = ic.unwrap_or(false);
+    block_on_py(python::add_user(
+        ic,
+        identity.to_string(),
+        memory_id.to_string(),
+        user_id.to_string(),
+        role.to_string(),
     ))
 }
 

@@ -4,8 +4,8 @@ use anyhow::{Context, Result, bail};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-const EMBEDDING_API_ENV_VAR: &str = "EMBEDDING_API_ENDPOINT";
-const DEFAULT_EMBEDDING_API_ENDPOINT: &str = "https://api.kinic.io";
+pub(crate) const EMBEDDING_API_ENV_VAR: &str = "EMBEDDING_API_ENDPOINT";
+pub(crate) const DEFAULT_EMBEDDING_API_ENDPOINT: &str = "https://api.kinic.io";
 const LATE_CHUNKING_PATH: &str = "/late-chunking";
 const EMBEDDING_PATH: &str = "/embedding";
 
@@ -53,7 +53,7 @@ async fn ensure_success(response: reqwest::Response) -> Result<reqwest::Response
     bail!("embedding API request failed with status {status}: {body}");
 }
 
-fn embedding_base_url() -> String {
+pub(crate) fn embedding_base_url() -> String {
     env::var(EMBEDDING_API_ENV_VAR).unwrap_or_else(|_| DEFAULT_EMBEDDING_API_ENDPOINT.to_string())
 }
 

@@ -104,6 +104,51 @@ cargo run -- --identity alice search \
 
 The CLI fetches an embedding for the query and prints the scored matches returned by the memory canister.
 
+### Manage config (add user)
+
+Grant a role for a user on a memory canister:
+
+```bash
+cargo run -- --identity alice config \
+  --memory-id yta6k-5x777-77774-aaaaa-cai \
+  --add-user <principal|anonymous> <admin|writer|reader>
+```
+
+Notes:
+- `anonymous` assigns the role to everyone; admin cannot be granted to `anonymous`.
+- Principals are validated; invalid text fails fast.
+
+### Update a memory canister instance
+
+Trigger the launcher’s `update_instance` for a given memory id:
+
+```bash
+cargo run -- --identity alice update \
+  --memory-id yta6k-5x777-77774-aaaaa-cai
+```
+
+### Check token balance
+
+Query the ledger for the current identity’s balance (base units):
+
+```bash
+cargo run -- --identity alice balance
+```
+
+### Ask AI (LLM placeholder)
+
+Runs a search and prepares context for an AI answer (LLM not implemented yet):
+
+```bash
+cargo run -- --identity alice ask-ai \
+  --memory-id yta6k-5x777-77774-aaaaa-cai \
+  --query "What did we say about quarterly goals?" \
+  --top-k 3
+```
+
+- Uses `EMBEDDING_API_ENDPOINT` (default: `https://api.kinic.io`) and calls `/chat`.
+- Prints the generated prompt and only the `<answer>` portion of the LLM response.
+
 ## Troubleshooting
 
 - **Replica already running**: stop lingering replicas with `dfx stop` before restarting.
@@ -113,3 +158,30 @@ The CLI fetches an embedding for the query and prints the scored matches returne
 ## Python wrapper
 
 The `kinic_py` package exposes the same memory workflows to Python. See the repository `README.md` for installation, API details, and an example script.
+
+### Python highlights
+
+```python
+from kinic_py import KinicMemories, ask_ai, get_balance, update_instance
+
+km = KinicMemories("<identity>", ic=False)  # set ic=True for mainnet
+memory_id = km.create("Demo", "Created from Python")
+
+# Insert / search
+km.insert_markdown(memory_id, "notes", "# Hello Kinic!")
+results = km.search(memory_id, "Hello")
+
+# Ask AI (returns prompt and the <answer> text only)
+prompt, answer = km.ask_ai(memory_id, "What did we say?", top_k=3, language="en")
+
+# Balance (base units, KINIC)
+base, kinic = km.balance()
+
+# Update a memory canister via launcher
+km.update(memory_id)
+
+# Stateless helpers
+ask_ai("<identity>", memory_id, "Another question")
+get_balance("<identity>")
+update_instance("<identity>", memory_id)
+```

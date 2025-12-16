@@ -74,7 +74,7 @@ Create (or switch to) a dfx identity before using the library:
 
 ```bash
 dfx identity new <name>
-# or
+# or if you have already created
 dfx identity use <name>
 ```
 
@@ -95,44 +95,105 @@ dfx canister --ic call 73mez-iiaaa-aaaaq-aaasq-cai icrc1_balance_of '(record {ow
 Or purchase them from MEXC or swap at https://app.icpswap.com/ . 
 
 ### 3. Deploy and Use Memory
+
 ```python
 from kinic_py import KinicMemories
 
-km = KinicMemories("<name>")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("<name>", ic=True)
+km = KinicMemories("<identity name>")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("<name>", ic=True)
 memory_id = km.create("Python demo", "Created via kinic_py")
+tag = "notes"
+markdown = "# Hello Kinic!\n\nInserted from Python."
 
-km.insert_markdown(memory_id, "notes", "# Hello Kinic!\n\nInserted from Python.")
+km.insert_markdown(memory_id, tag, markdown)
 
 for score, payload in km.search(memory_id, "Hello"):
     print(f"{score:.4f} -> {payload}")  # payload is the JSON stored in insert
 ```
 
+You can tag inserted content (e.g., `notes`, `summary_q1`) and manage it later by tag.
+
 ---
 
-## Insert a PDF (CLI + Python)
+## Insert a PDF
 
-CLI command (converts to markdown first):
-```bash
-cargo run -- --identity <name> insert-pdf \
-  --memory-id <memory canister id> \
-  --file-path ./docs/report.pdf \
-  --tag quarterly_report
-```
-
-Python helper (preferred: `insert_pdf_file`):
+Python (preferred: `insert_pdf_file`):
 ```python
-from kinic_py import KinicMemories
-
-km = KinicMemories("<name>")  # add ic=True for mainnet
-memory_id = "<your memory canister id>"
-
-chunks = km.insert_pdf_file(memory_id, "quarterly_report", "./docs/report.pdf")
-print(f"Inserted {chunks} PDF chunks")
+num_chunks = km.insert_pdf_file(memory_id, "quarterly_report", "./docs/report.pdf")
+print(f"Inserted {num_chunks} PDF chunks")
 ```
 
 The deprecated `insert_pdf(...)` alias still works, but `insert_pdf_file(...)` is the canonical API.
 
 See `python/examples/insert_pdf_file.py` for a runnable script.
+
+---
+
+## Ask AI
+
+Runs a search and prepares context for an AI answer. The CLI calls `/chat` at `EMBEDDING_API_ENDPOINT` (default `https://api.kinic.io`) and prints only the `<answer>` text.
+
+```python
+prompt, answer = km.ask_ai(memory_id, "What did we say about quarterly goals?", top_k=3, language="en")
+print("Prompt:\n", prompt)
+print("Answer:\n", answer)
+```
+
+- `km.ask_ai` returns `(prompt, answer)` where `answer` is the `<answer>` section from the chat response.
+- CLI usage: `cargo run -- --identity <name> ask-ai --memory-id <id> --query "<q>" --top-k 3`
+
+---
+
+## Configure memory visibility
+
+You can control who can read or write a memory canister—either everyone (`anonymous`) or specific principals—and assign `reader` or `writer` roles.
+
+Python example:
+```python
+from kinic_py import KinicMemories
+
+km = KinicMemories("<identity>")
+
+# Grant reader access to everyone (anonymous)
+km.add_user("<memory canister id>", "anonymous", "reader")
+
+# Grant writer access to a specific principal
+km.add_user("<memory canister id>", "w7x7r-cok77-7x4qo-hqaaa-aaaaa-b", "writer")
+```
+
+CLI example:
+```bash
+# Give everyone reader access
+cargo run -- --identity <name> config \
+  --memory-id <memory canister id> \
+  --add-user anonymous reader
+
+# Grant writer access to a specific principal
+cargo run -- --identity <name> config \
+  --memory-id <memory canister id> \
+  --add-user w7x7r-cok77-7x4qo-hqaaa-aaaaa-b writer
+```
+
+Notes:
+- `anonymous` applies to everyone; admin cannot be granted to anonymous.
+- Roles: `admin` (1), `writer` (2), `reader` (3).
+- Principals are validated; invalid text fails fast.
+
+---
+
+## Update a memory canister (CLI)
+
+Trigger the launcher’s `update_instance` for a given memory id:
+```bash
+cargo run -- --identity <name> update \
+  --memory-id <memory canister id>
+```
+
+## Check token balance (CLI)
+
+Query the ledger for the current identity’s balance (base units):
+```bash
+cargo run -- --identity <name> balance
+```
 
 ---
 
@@ -179,6 +240,17 @@ Search memories with semantic similarity.
 
 **Returns:** List of `(score, payload)` tuples sorted by relevance
 
+#### `ask_ai(memory_id: str, query: str, top_k: int | None = None, language: str | None = None) -> Tuple[str, str]`
+Run the Ask AI flow: search, build an LLM prompt, and return `(prompt, answer)` where `answer` is the `<answer>` section from the chat endpoint.
+
+**Parameters:** `top_k` (defaults to 5), `language` code (e.g., `"en"`)
+
+#### `balance() -> Tuple[int, float]`
+Return the current identity’s balance as `(base_units, kinic)`.
+
+#### `update(memory_id: str) -> None`
+Trigger `update_instance` via the launcher for the given memory canister.
+
 ### Module-Level Functions
 
 Stateless alternatives available:
@@ -189,6 +261,9 @@ Stateless alternatives available:
 - `insert_pdf_file(identity, memory_id, tag, path, ic=False)`
 - `insert_pdf(identity, memory_id, tag, path, ic=False)`
 - `search_memories(identity, memory_id, query, ic=False)`
+- `ask_ai(identity, memory_id, query, top_k=None, language=None, ic=False)`
+- `get_balance(identity, ic=False)`
+- `update_instance(identity, memory_id, ic=False)`
 
 ---
 
@@ -199,13 +274,22 @@ Run the complete example at `python/examples/memories_demo.py`:
 # With existing memory
 uv run python python/examples/memories_demo.py \
   --identity <name> \
-  --memory-id 
+  --memory-id <memory canister id>
 
 # Deploy new memory
 uv run python python/examples/memories_demo.py --identity <name>
 
 # Use mainnet
 uv run python python/examples/memories_demo.py --identity <name> --ic
+```
+
+Ask AI example at `python/examples/ask_ai.py`:
+```bash
+uv run python python/examples/ask_ai.py \
+  --identity <name> \
+  --memory-id <memory canister id> \
+  --query "What is xxxx?" \
+  --top-k 3
 ```
 
 ---

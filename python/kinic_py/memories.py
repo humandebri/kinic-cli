@@ -56,6 +56,36 @@ class KinicMemories:
         """Search the specified memory canister."""
         return search_memories(self.identity, memory_id, query, ic=self.ic)
 
+    def ask_ai(
+        self,
+        memory_id: str,
+        query: str,
+        *,
+        top_k: int | None = None,
+        language: str | None = None,
+    ) -> tuple[str, str]:
+        """Run ask-ai (search + LLM) and return (prompt, answer)."""
+        return ask_ai(
+            self.identity,
+            memory_id,
+            query,
+            top_k=top_k,
+            language=language,
+            ic=self.ic,
+        )
+
+    def balance(self) -> tuple[int, float]:
+        """Return (base_units, kinic) balance for the current identity."""
+        return get_balance(self.identity, ic=self.ic)
+
+    def update(self, memory_id: str) -> None:
+        """Trigger launcher update_instance for the memory canister."""
+        update_instance(self.identity, memory_id, ic=self.ic)
+
+    def add_user(self, memory_id: str, user_id: str, role: str) -> None:
+        """Configure visibility: add a user (principal or 'anonymous') with a role (admin/writer/reader)."""
+        add_user(self.identity, memory_id, user_id, role, ic=self.ic)
+
 
 def create_memory(
     identity: str,
@@ -148,3 +178,34 @@ def search_memories(
     ic: bool | None = None,
 ) -> ScoreResult:
     return native.search_memories(identity, memory_id, query, ic=ic)
+
+
+def ask_ai(
+    identity: str,
+    memory_id: str,
+    query: str,
+    *,
+    top_k: int | None = None,
+    language: str | None = None,
+    ic: bool | None = None,
+) -> tuple[str, str]:
+    return native.ask_ai(identity, memory_id, query, top_k=top_k, language=language, ic=ic)
+
+
+def get_balance(identity: str, *, ic: bool | None = None) -> tuple[int, float]:
+    return native.get_balance(identity, ic=ic)
+
+
+def update_instance(identity: str, memory_id: str, *, ic: bool | None = None) -> None:
+    return native.update_instance(identity, memory_id, ic=ic)
+
+
+def add_user(
+    identity: str,
+    memory_id: str,
+    user_id: str,
+    role: str,
+    *,
+    ic: bool | None = None,
+) -> None:
+    return native.add_user(identity, memory_id, user_id, role, ic=ic)

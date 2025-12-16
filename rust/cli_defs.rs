@@ -49,6 +49,14 @@ pub enum Command {
     ConvertPdf(ConvertPdfArgs),
     #[command(about = "Search within a memory canister using embeddings")]
     Search(SearchArgs),
+    #[command(about = "Manage Kinic CLI configuration")]
+    Config(ConfigArgs),
+    #[command(about = "Update a memory canister instance")]
+    Update(UpdateArgs),
+    #[command(about = "Check KINIC token balance for the current identity")]
+    Balance(BalanceArgs),
+    #[command(about = "Ask Kinic AI using memory search results (LLM placeholder)")]
+    AskAi(AskAiArgs),
 }
 
 #[derive(Args, Debug)]
@@ -120,4 +128,56 @@ pub struct SearchArgs {
 
     #[arg(long, required = true, help = "Query text to embed and search")]
     pub query: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ConfigArgs {
+    #[arg(
+        long,
+        required = true,
+        help = "Principal of the target memory canister"
+    )]
+    pub memory_id: String,
+
+    #[arg(
+        long,
+        value_names = ["USER_ID", "ROLE"],
+        num_args = 2,
+        help = "Add a user with role to the Kinic CLI config (placeholder)"
+    )]
+    pub add_user: Option<Vec<String>>,
+}
+
+#[derive(Args, Debug)]
+pub struct UpdateArgs {
+    #[arg(
+        long,
+        required = true,
+        help = "Principal of the target memory canister to update"
+    )]
+    pub memory_id: String,
+}
+
+#[derive(Args, Debug)]
+pub struct BalanceArgs {}
+
+#[derive(Args, Debug)]
+pub struct AskAiArgs {
+    #[arg(
+        long,
+        required = true,
+        help = "Principal of the memory canister to search"
+    )]
+    pub memory_id: String,
+
+    #[arg(long, required = true, help = "Query text to embed and search")]
+    pub query: String,
+
+    #[arg(
+        long,
+        default_value_t = 5,
+        value_name = "N",
+        help = "Number of top search results to include in the LLM prompt"
+    )]
+    pub top_k: usize,
 }
