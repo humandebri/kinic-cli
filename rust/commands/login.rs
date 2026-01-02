@@ -7,6 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use ic_agent::export::Principal;
 use ic_agent::identity::{Delegation, SignedDelegation};
 use serde::Deserialize;
+use serde_json::json;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -20,6 +21,7 @@ use crate::{
         StoredIdentity,
         derive_principal_from_user_key,
         generate_session_key,
+        normalize_spki_key,
         save_identity,
     },
 };
@@ -36,6 +38,11 @@ struct BrowserPayload {
     delegations: Vec<BrowserSignedDelegation>,
     #[serde(rename = "userPublicKey")]
     user_public_key: Vec<u8>,
+}
+
+struct CallbackData {
+    payload: BrowserPayload,
+    principal: Principal,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +66,7 @@ pub async fn handle(args: LoginArgs, ctx: &CommandContext) -> Result<()> {
         .ok_or_else(|| anyhow!("Identity path is missing"))?;
     let ttl_ns = ttl_nanos()?;
     let session = generate_session_key()?;
+    let session_pubkey = normalize_spki_key(&session.public_key)?;
     let html = build_login_page(&session, ttl_ns);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], args.callback_port));
@@ -68,14 +76,14 @@ pub async fn handle(args: LoginArgs, ctx: &CommandContext) -> Result<()> {
 
     open_browser(args.callback_port)?;
 
-    let payload = accept_callback(listener, html).await?;
-    let delegations = convert_delegations(payload.delegations)?;
+    let callback = accept_callback(listener, html).await?;
+    let delegations = convert_delegations(callback.payload.delegations, &session_pubkey)?;
     let expiration_ns = delegation_expiration(&delegations)?;
-    let principal = derive_principal_from_user_key(&payload.user_public_key)?;
+    let principal = callback.principal;
     let stored = StoredIdentity {
         version: 1,
         identity_provider: IDENTITY_PROVIDER_URL.to_string(),
-        user_public_key_hex: hex::encode(payload.user_public_key),
+        user_public_key_hex: hex::encode(callback.payload.user_public_key),
         session_pkcs8_hex: hex::encode(session.pkcs8),
         delegations,
         expiration_ns,
@@ -106,6 +114,7 @@ fn build_login_page(session: &SessionKeyMaterial, ttl_ns: u64) -> String {
 <body>
   <h1>Kinic CLI Login</h1>
   <p id="status">Click the button below to open Internet Identity.</p>
+  <p id="principal"></p>
   <button id="open-ii" type="button">Open Internet Identity</button>
   <script>
     const STATUS = document.getElementById("status");
@@ -114,6 +123,7 @@ fn build_login_page(session: &SessionKeyMaterial, ttl_ns: u64) -> String {
     const II_ORIGIN = "{ii_origin}";
     const SESSION_PUBLIC_KEY_HEX = "{session_key_hex}";
     const MAX_TTL = BigInt("{ttl_ns}");
+    const PRINCIPAL = document.getElementById("principal");
 
     function hexToBytes(hex) {{
       const bytes = [];
@@ -153,6 +163,8 @@ fn build_login_page(session: &SessionKeyMaterial, ttl_ns: u64) -> String {
         return;
       }}
       STATUS.textContent = "Waiting for authentication...";
+      OPEN_BUTTON.disabled = true;
+      OPEN_BUTTON.textContent = "Opening...";
     }}
 
     OPEN_BUTTON.addEventListener("click", () => {{
@@ -184,14 +196,27 @@ fn build_login_page(session: &SessionKeyMaterial, ttl_ns: u64) -> String {
           delegations: normalizeDelegations(msg.delegations || []),
           userPublicKey: normalizeUserPublicKey(msg.userPublicKey),
         }};
-        await fetch("/callback", {{
+        const resp = await fetch("/callback", {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
           body: JSON.stringify(payload),
         }});
-        STATUS.textContent = "Done. You can close this tab.";
+        if (resp.ok) {{
+          const data = await resp.json();
+          STATUS.textContent = "Done. You can close this tab.";
+          if (data.principal) {{
+            PRINCIPAL.textContent = `Principal: ${{data.principal}}`;
+          }}
+          OPEN_BUTTON.style.display = "none";
+        }} else {{
+          STATUS.textContent = "Callback failed. Please retry.";
+          OPEN_BUTTON.disabled = false;
+          OPEN_BUTTON.textContent = "Open Internet Identity";
+        }}
       }} else if (msg.kind === "authorize-client-failure") {{
         STATUS.textContent = "Login failed. Please retry.";
+        OPEN_BUTTON.disabled = false;
+        OPEN_BUTTON.textContent = "Open Internet Identity";
       }}
     }});
   </script>
@@ -205,16 +230,16 @@ fn build_login_page(session: &SessionKeyMaterial, ttl_ns: u64) -> String {
     )
 }
 
-async fn accept_callback(listener: TcpListener, html: String) -> Result<BrowserPayload> {
+async fn accept_callback(listener: TcpListener, html: String) -> Result<CallbackData> {
     loop {
         let (mut stream, _) = listener.accept().await?;
-        if let Some(payload) = handle_connection(&mut stream, &html).await? {
-            return Ok(payload);
+        if let Some(callback) = handle_connection(&mut stream, &html).await? {
+            return Ok(callback);
         }
     }
 }
 
-async fn handle_connection(stream: &mut TcpStream, html: &str) -> Result<Option<BrowserPayload>> {
+async fn handle_connection(stream: &mut TcpStream, html: &str) -> Result<Option<CallbackData>> {
     let request = read_request(stream).await?;
     match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/") => {
@@ -229,14 +254,20 @@ async fn handle_connection(stream: &mut TcpStream, html: &str) -> Result<Option<
         ("POST", "/callback") => {
             let payload: BrowserPayload = serde_json::from_slice(&request.body)
                 .context("Failed to parse callback payload")?;
-            let body = "OK";
+            let principal =
+                derive_principal_from_user_key(&payload.user_public_key).context("invalid key")?;
+            let body = json!({
+                "status": "ok",
+                "principal": principal.to_text(),
+            })
+            .to_string();
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}",
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
                 body.len(),
                 body
             );
             stream.write_all(response.as_bytes()).await?;
-            Ok(Some(payload))
+            Ok(Some(CallbackData { payload, principal }))
         }
         _ => {
             let body = "Not found";
@@ -314,10 +345,18 @@ fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|window| window == b"\r\n\r\n")
 }
 
-fn convert_delegations(entries: Vec<BrowserSignedDelegation>) -> Result<Vec<SignedDelegation>> {
+fn convert_delegations(
+    entries: Vec<BrowserSignedDelegation>,
+    expected_pubkey: &[u8],
+) -> Result<Vec<SignedDelegation>> {
     entries
         .into_iter()
         .map(|entry| {
+            let normalized_pubkey =
+                normalize_spki_key(&entry.delegation.pubkey).context("Unsupported delegation public key format")?;
+            if normalized_pubkey != expected_pubkey {
+                anyhow::bail!("Delegation public key does not match session key");
+            }
             let targets = match entry.delegation.targets {
                 Some(list) => {
                     let principals = list
@@ -331,7 +370,7 @@ fn convert_delegations(entries: Vec<BrowserSignedDelegation>) -> Result<Vec<Sign
             };
             Ok(SignedDelegation {
                 delegation: Delegation {
-                    pubkey: entry.delegation.pubkey,
+                    pubkey: normalized_pubkey,
                     expiration: entry.delegation.expiration,
                     targets,
                 },

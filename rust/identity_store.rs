@@ -14,6 +14,8 @@ use pkcs8::{ObjectIdentifier, spki::SubjectPublicKeyInfoRef};
 use tracing::warn;
 use ring::signature::Ed25519KeyPair;
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredIdentity {
@@ -71,6 +73,7 @@ pub fn load_delegated_identity(path: &Path) -> Result<DelegatedIdentity> {
 
     if is_canister_signature_key(&user_public_key)? {
         warn!("Delegation chain uses canister signature keys; skipping local verification.");
+        eprintln!("Warning: delegation uses canister signature keys; skipped local verification.");
         return Ok(DelegatedIdentity::new_unchecked(
             user_public_key,
             Box::new(session_identity),
@@ -87,6 +90,7 @@ pub fn load_delegated_identity(path: &Path) -> Result<DelegatedIdentity> {
         Ok(identity) => Ok(identity),
         Err(DelegationError::UnknownAlgorithm) => {
             warn!("Delegation chain uses an unknown algorithm; skipping local verification.");
+            eprintln!("Warning: delegation uses an unknown algorithm; skipped local verification.");
             let key_pair = Ed25519KeyPair::from_pkcs8(&pkcs8)
                 .map_err(|_| anyhow!("Invalid session key"))?;
             let session_identity = BasicIdentity::from_key_pair(key_pair);
@@ -117,9 +121,30 @@ pub fn save_identity(path: &Path, stored: &StoredIdentity) -> Result<()> {
         })?;
     }
     let payload = serde_json::to_string_pretty(stored).context("Failed to encode identity.json")?;
-    fs::write(path, payload).with_context(|| {
+
+    // Write atomically with restricted permissions (0600) to protect the session key.
+    let tmp_path = path.with_extension("tmp");
+    {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&tmp_path)
+            .with_context(|| format!("Failed to open temp identity file at {}", tmp_path.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perm = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&tmp_path, perm)
+                .with_context(|| format!("Failed to set permissions on {}", tmp_path.display()))?;
+        }
+        file.write_all(payload.as_bytes())
+            .context("Failed to write identity payload")?;
+        file.sync_all().context("Failed to sync identity file")?;
+    }
+    fs::rename(&tmp_path, path).with_context(|| {
         format!(
-            "Failed to write identity file at {}",
+            "Failed to move temp identity file into place at {}",
             path.display()
         )
     })?;
@@ -157,7 +182,7 @@ fn normalize_delegations(entries: &[SignedDelegation]) -> Result<Vec<SignedDeleg
         .collect()
 }
 
-fn normalize_spki_key(bytes: &[u8]) -> Result<Vec<u8>> {
+pub fn normalize_spki_key(bytes: &[u8]) -> Result<Vec<u8>> {
     if SubjectPublicKeyInfoRef::decode(&mut SliceReader::new(bytes).map_err(|_| anyhow!("parse"))?)
         .is_ok()
     {

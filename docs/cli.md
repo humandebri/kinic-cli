@@ -62,7 +62,7 @@ cargo run -- --identity alice create \
   --description "Local test canister"
 ```
 
-### Internet Identity login (macOS)
+### Internet Identity login
 
 First, open the browser login flow and store a delegation (default TTL: 30 days):
 

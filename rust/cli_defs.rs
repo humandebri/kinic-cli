@@ -29,12 +29,15 @@ pub struct GlobalOpts {
 
     #[arg(
         long,
+        conflicts_with = "ii",
+        required_unless_present = "ii",
         help = "Keychain identity suffix used to load credentials from the system keyring"
     )]
     pub identity: Option<String>,
 
     #[arg(
         long,
+        conflicts_with = "identity",
         help = "Use Internet Identity login (delegation saved to identity.json)"
     )]
     pub ii: bool,

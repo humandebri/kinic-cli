@@ -27,6 +27,3 @@ pip-wheel-metadata/
 .DS_Store
 .idea/
 .vscode/
-
-# local Internet Identity delegation cache
-identity.json
