@@ -34,6 +34,7 @@ By default we use the Internet Computer as the DA layer—with VetKey encryption
 ## Prerequisites
 
 - **Python 3.9+**
+- **dfx 0.28+** with the `arm64` build on Apple Silicon (macOS)
 - **KINIC tokens**: At least 1 KINIC to deploy memory canisters
 - **dfx identity**: Create or select one with `dfx identity new <name>` or `dfx identity use <name>`
 
@@ -43,7 +44,6 @@ By default we use the Internet Computer as the DA layer—with VetKey encryption
 
 These are only required if you want to run a local replica for development/testing.
 
-- **dfx 0.28+** with the `arm64` build on Apple Silicon (macOS)
 - Local Internet Computer replica (`dfx start`)
 
 Optional: If you need local launcher/ledger/II canisters, run `./scripts/setup.sh` after `dfx start --clean --background`.
@@ -74,26 +74,34 @@ uv pip install -e .
 
 ## Quickstart
 
-### 1. Create or Select Your Identity
+### 1. dfx identity flow (--identity)
 
-Choose one of the following:
+Create (or switch to) a dfx identity before using the library:
 
-- **dfx identity**: Use a dfx identity name in CLI/Python calls.
-- **Internet Identity** (CLI only): Run `cargo run -- --ii login` once to save a delegation, then pass `--ii` on CLI commands.
+```bash
+dfx identity new <name>
+# or if you have already created
+dfx identity use <name>
+```
 
-Example: use `IDENTITY_NAME` wherever you see `<name>` below.
+Use that name with `--identity` in CLI/Python calls.
 
-### 2. Check Your Balance
+### 2. Check Your Balance (dfx identity)
 
 Make sure you have at least 1 KINIC token:
 ```bash
-cargo run -- --identity <name> balance
+# Get your principal
+dfx --identity <name> identity get-principal
+
+# Check balance (result is in base units: 100000000 = 1 KINIC)
+dfx canister --ic call 73mez-iiaaa-aaaaq-aaasq-cai icrc1_balance_of '(record {owner = principal "<your principal>"; subaccount = null; }, )'
+
+# Example: (100000000 : nat) == 1 KINIC
 ```
-This prints your principal and balance (base units: `100000000 = 1 KINIC`).
 
-### Internet Identity login (CLI only)
+### 3. Internet Identity flow (--ii, CLI only)
 
-If you prefer browser login instead of a keychain PEM:
+If you prefer browser login instead of a dfx identity PEM:
 
 ```bash
 cargo run -- --ii login
@@ -112,12 +120,12 @@ base, kinic = get_balance("<identity name>", ic=True)
 
 Or purchase them from MEXC or swap at https://app.icpswap.com/ . 
 
-### 3. Deploy and Use Memory
+### 4. Deploy and Use Memory
 
 ```python
 from kinic_py import KinicMemories
 
-km = KinicMemories("<identity name>")  # keychain identity name; use ic=True for mainnet, e.g. KinicMemories("<name>", ic=True)
+km = KinicMemories("<identity name>")  # dfx identity name; use ic=True for mainnet, e.g. KinicMemories("<name>", ic=True)
 memory_id = km.create("Python demo", "Created via kinic_py")
 tag = "notes"
 markdown = "# Hello Kinic!\n\nInserted from Python."
@@ -225,7 +233,7 @@ KinicMemories(identity: str, ic: bool = False)
 ```
 
 **Parameters:**
-- `identity`: Your keychain identity name (PEM stored as `internet_computer_identity_<IDENTITY_NAME>`)
+- `identity`: Your dfx identity name
 - `ic`: Set `True` to target mainnet (default: `False` for local)
 
 ### Methods

@@ -5,9 +5,7 @@ Command-line companion for deploying and operating Kinic “memory” canisters.
 ## Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) and `cargo`
-- Keychain/credential store (only needed when using `--identity`; the CLI reads PEMs via the `keyring` crate)
-
-> **Keychain note:** If you hit `-67671 (errSecInteractionNotAllowed)` when loading a PEM, switch to the arm64 build of `dfx`. See the [dfx 0.28 migration guide](https://github.com/dfinity/sdk/blob/0.28.0/docs/migration/dfx-0.28.0-migration-guide.md).
+- dfx identity (used when passing `--identity`)
 
 ## Local development prerequisites (optional)
 
@@ -40,7 +38,7 @@ These are only required if you want to run a local replica for development and t
 
 4. **Configure identities**
 
-   - Store your PEM in your keychain/credential store entry named `internet_computer_identity_<IDENTITY_NAME>`.
+   - Create or select a dfx identity (`dfx identity new <name>` or `dfx identity use <name>`).
    - Pass that name via `--identity` whenever you run the CLI (the default script assumes `default`).
 
 5. **Set embedding endpoint**
@@ -53,21 +51,27 @@ These are only required if you want to run a local replica for development and t
 
 ## Running the CLI
 
-Use either `--identity` (keychain PEM) or `--ii` (Internet Identity login). Use `--ic` to talk to mainnet; omit it (or leave false) for the local replica.
+Use either `--identity` (dfx identity name; PEM at `~/.config/dfx/identity/<name>/identity.pem`) or `--ii` (Internet Identity login). Use `--ic` to talk to mainnet; omit it (or leave false) for the local replica. If you are not using `--ii`, `--identity <name>` is required for CLI commands.
+
+### dfx identity flow (--identity)
 
 ```bash
+dfx identity new alice
+# or if you already created it:
+dfx identity use alice
+
 cargo run -- --identity alice list
 cargo run -- --identity alice create \
   --name "Demo memory" \
   --description "Local test canister"
 ```
 
-### Internet Identity login
+### Internet Identity flow (--ii)
 
 First, open the browser login flow and store a delegation (default TTL: 30 days):
 
 ```bash
-cargo run -- login
+cargo run -- --ii login
 ```
 
 Then run commands with `--ii`:
@@ -178,7 +182,7 @@ cargo run -- --identity alice ask-ai \
 ## Troubleshooting
 
 - **Replica already running**: stop lingering replicas with `dfx stop` before restarting.
-- **Keychain access errors**: ensure the CLI has permission to read the keychain entry, and prefer the arm64 build of `dfx`.
+- **Identity PEM errors**: ensure the dfx identity exists and that `~/.config/dfx/identity/<name>/identity.pem` is readable.
 - **Embedding API failures**: set `EMBEDDING_API_ENDPOINT` and verify the endpoint responds to `/late-chunking` and `/embedding`.
 
 ## Python wrapper
