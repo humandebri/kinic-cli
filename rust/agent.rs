@@ -1,58 +1,60 @@
-use std::io::Cursor;
+use std::{io::Cursor, sync::Arc};
 
 use anyhow::Result;
 use ic_agent::{
     Agent,
     export::reqwest::Url,
-    identity::{BasicIdentity, DelegatedIdentity, Secp256k1Identity},
+    identity::{BasicIdentity, Secp256k1Identity},
+    Identity,
 };
-
-use crate::identity_store;
 
 pub const KEYRING_SERVICE_NAME: &str = "internet_computer_identities";
 pub const KEYRING_IDENTITY_PREFIX: &str = "internet_computer_identity_";
 
 #[derive(Clone)]
-pub enum AuthMode {
-    Keychain(String),
-    InternetIdentity(std::path::PathBuf),
-}
-
-#[derive(Clone)]
 pub struct AgentFactory {
     use_mainnet: bool,
-    auth_mode: AuthMode,
+    identity_suffix: String,
+    identity_override: Option<Arc<dyn Identity>>,
 }
 
 impl AgentFactory {
-    pub fn new(use_mainnet: bool, auth_mode: AuthMode) -> Self {
+    pub fn new(use_mainnet: bool, identity_suffix: impl Into<String>) -> Self {
         Self {
             use_mainnet,
-            auth_mode,
+            identity_suffix: identity_suffix.into(),
+            identity_override: None,
+        }
+    }
+
+    pub fn new_with_identity<I>(use_mainnet: bool, identity: I) -> Self
+    where
+        I: Identity + 'static,
+    {
+        Self {
+            use_mainnet,
+            identity_suffix: String::new(),
+            identity_override: Some(Arc::new(identity)),
         }
     }
 
     pub async fn build(&self) -> Result<Agent> {
-        let builder = match &self.auth_mode {
-            AuthMode::Keychain(identity_suffix) => {
-                let pem_bytes = load_pem_from_keyring(identity_suffix)?;
-                let pem_text = String::from_utf8(pem_bytes.clone())?;
-                let pem = pem::parse(pem_text.as_bytes())?;
-                match pem.tag() {
-                    "PRIVATE KEY" => {
-                        let identity = BasicIdentity::from_pem(Cursor::new(pem_text.clone()))?;
-                        Agent::builder().with_identity(identity)
-                    }
-                    "EC PRIVATE KEY" => {
-                        let identity = Secp256k1Identity::from_pem(Cursor::new(pem_text.clone()))?;
-                        Agent::builder().with_identity(identity)
-                    }
-                    _ => anyhow::bail!("Unsupported PEM tag: {}", pem.tag()),
+        let builder = if let Some(identity) = &self.identity_override {
+            Agent::builder().with_arc_identity(identity.clone())
+        } else {
+            let pem_bytes = load_pem_from_keyring(&self.identity_suffix)?;
+            let pem_text = String::from_utf8(pem_bytes.clone())?;
+            let pem = pem::parse(pem_text.as_bytes())?;
+            match pem.tag() {
+                "PRIVATE KEY" => {
+                    let identity = BasicIdentity::from_pem(Cursor::new(pem_text.clone()))?;
+                    Agent::builder().with_identity(identity)
                 }
-            }
-            AuthMode::InternetIdentity(path) => {
-                let identity = load_internet_identity(path)?;
-                Agent::builder().with_identity(identity)
+                "EC PRIVATE KEY" => {
+                    let identity = Secp256k1Identity::from_pem(Cursor::new(pem_text.clone()))?;
+                    Agent::builder().with_identity(identity)
+                }
+                _ => anyhow::bail!("Unsupported PEM tag: {}", pem.tag()),
             }
         };
 
@@ -69,10 +71,6 @@ impl AgentFactory {
         }
         Ok(agent)
     }
-}
-
-fn load_internet_identity(path: &std::path::Path) -> Result<DelegatedIdentity> {
-    identity_store::load_delegated_identity(path)
 }
 
 fn load_pem_from_keyring(suffix: &str) -> anyhow::Result<Vec<u8>> {

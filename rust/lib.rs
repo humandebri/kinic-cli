@@ -14,7 +14,7 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::fmt;
 
 use crate::{
-    agent::{AgentFactory, AuthMode},
+    agent::AgentFactory,
     cli::Cli,
     commands::{CommandContext, run_command},
 };
@@ -52,32 +52,23 @@ pub async fn run() -> Result<()> {
         None
     };
 
-    let auth_mode = match cli.command {
-        cli::Command::Login(_) => AuthMode::InternetIdentity(
-            identity_path
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("Identity path is missing"))?,
-        ),
-        _ => {
-            if cli.global.ii {
-                AuthMode::InternetIdentity(
-                    identity_path
-                        .clone()
-                        .ok_or_else(|| anyhow::anyhow!("Identity path is missing"))?,
-                )
-            } else {
-                let identity = cli
-                    .global
-                    .identity
-                    .clone()
-                    .ok_or_else(|| anyhow::anyhow!("--identity is required unless --ii is set"))?;
-                AuthMode::Keychain(identity)
-            }
-        }
+    let agent_factory = if cli.global.ii && !matches!(cli.command, cli::Command::Login(_)) {
+        let path = identity_path
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Identity path is missing"))?;
+        let delegated = identity_store::load_delegated_identity(&path)?;
+        AgentFactory::new_with_identity(cli.global.ic, delegated)
+    } else {
+        let identity_suffix = cli
+            .global
+            .identity
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("--identity is required unless --ii is set"))?;
+        AgentFactory::new(cli.global.ic, identity_suffix)
     };
 
     let context = CommandContext {
-        agent_factory: AgentFactory::new(cli.global.ic, auth_mode),
+        agent_factory,
         identity_path,
     };
 
