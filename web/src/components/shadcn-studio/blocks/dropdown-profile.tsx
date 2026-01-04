@@ -9,9 +9,6 @@ import {
   UserIcon,
   SettingsIcon,
   CreditCardIcon,
-  UsersIcon,
-  SquarePenIcon,
-  CirclePlusIcon,
   LogOutIcon
 } from 'lucide-react'
 
@@ -34,6 +31,7 @@ type Props = {
   name?: string
   subtitle?: string
   statusLabel?: string
+  onDisconnect?: () => void
 }
 
 const ProfileDropdown = ({
@@ -42,7 +40,8 @@ const ProfileDropdown = ({
   align = 'end',
   name = 'Guest',
   subtitle = 'Not connected',
-  statusLabel = 'offline'
+  statusLabel = 'offline',
+  onDisconnect
 }: Props) => {
   const mounted = useMounted()
 
@@ -87,28 +86,13 @@ const ProfileDropdown = ({
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuItem className='px-4 py-2.5 text-base'>
-            <UsersIcon className='text-foreground size-5' />
-            <span>Manage team</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className='px-4 py-2.5 text-base'>
-            <SquarePenIcon className='text-foreground size-5' />
-            <span>Customization</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className='px-4 py-2.5 text-base'>
-            <CirclePlusIcon className='text-foreground size-5' />
-            <span>Add team account</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem variant='destructive' className='px-4 py-2.5 text-base'>
+        <DropdownMenuItem
+          variant='destructive'
+          className='px-4 py-2.5 text-base'
+          onClick={onDisconnect}
+        >
           <LogOutIcon className='size-5' />
-          <span>Logout</span>
+          <span>Disconnect</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

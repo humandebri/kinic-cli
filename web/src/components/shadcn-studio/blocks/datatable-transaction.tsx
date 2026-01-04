@@ -116,12 +116,6 @@ const TransactionDatatable = ({ data }: { data: TransactionItem[] }) => {
 
   return (
     <div className='w-full space-y-4'>
-      <div className='flex items-center justify-between'>
-        <span className='text-lg font-semibold'>Recent activity</span>
-        <Button variant='outline' className='text-muted-foreground'>
-          View all
-        </Button>
-      </div>
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

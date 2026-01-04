@@ -4,7 +4,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { FacebookIcon, InstagramIcon, LinkedinIcon, TwitterIcon, UserIcon } from 'lucide-react'
+import { GithubIcon, RefreshCwIcon, TwitterIcon, UserIcon } from 'lucide-react'
 
 import {
   Breadcrumb,
@@ -38,6 +38,9 @@ type AppShellProps = {
   pageTitle: string
   pageSubtitle?: string
   identityState: IdentityState
+  balanceText?: string | null
+  onBalanceRefresh?: () => void
+  isBalanceRefreshing?: boolean
   children: ReactNode
 }
 
@@ -47,7 +50,15 @@ const shortenPrincipal = (principalText: string | null): string => {
   return `${principalText.slice(0, 6)}...${principalText.slice(-4)}`
 }
 
-const AppShell = ({ pageTitle, pageSubtitle, identityState, children }: AppShellProps) => {
+const AppShell = ({
+  pageTitle,
+  pageSubtitle,
+  identityState,
+  balanceText,
+  onBalanceRefresh,
+  isBalanceRefreshing = false,
+  children
+}: AppShellProps) => {
   return (
     <div className='flex min-h-dvh w-full'>
       <SidebarProvider>
@@ -131,11 +142,24 @@ const AppShell = ({ pageTitle, pageSubtitle, identityState, children }: AppShell
                 </Breadcrumb>
               </div>
               <div className='flex items-center gap-1.5'>
-                {identityState.isAuthenticated ? (
-                  <Button variant='outline' size='sm' onClick={identityState.logout} disabled={!identityState.isReady}>
-                    Disconnect
-                  </Button>
-                ) : (
+                {balanceText ? (
+                  <div className='flex items-center gap-1.5 rounded-full border border-zinc-200/70 bg-white/80 px-3  text-sm text-zinc-700 shadow-sm backdrop-blur'>
+                    <span className='font-medium'>{balanceText}</span>
+                    {onBalanceRefresh ? (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='size-7 rounded-full text-zinc-500'
+                        onClick={onBalanceRefresh}
+                        disabled={isBalanceRefreshing}
+                      >
+                        <RefreshCwIcon className={isBalanceRefreshing ? 'animate-spin' : ''} />
+                        <span className='sr-only'>Reload balance</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {identityState.isAuthenticated ? null : (
                   <Button size='sm' onClick={identityState.login} disabled={!identityState.isReady}>
                     Connect Identity
                   </Button>
@@ -144,8 +168,13 @@ const AppShell = ({ pageTitle, pageSubtitle, identityState, children }: AppShell
                   name={identityState.isAuthenticated ? 'Connected' : 'Guest'}
                   subtitle={shortenPrincipal(identityState.principalText)}
                   statusLabel={identityState.isAuthenticated ? 'online' : 'offline'}
+                  onDisconnect={identityState.logout}
                   trigger={
-                    <Button variant='ghost' size='icon' className='size-9.5'>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='size-7 rounded-full border border-zinc-200/70 bg-white/80 text-zinc-700 shadow-sm backdrop-blur'
+                    >
                       <UserIcon />
                     </Button>
                   }
@@ -164,17 +193,11 @@ const AppShell = ({ pageTitle, pageSubtitle, identityState, children }: AppShell
                 , Personal memory workspace
               </p>
               <div className='flex items-center gap-5'>
-                <a href='#'>
-                  <FacebookIcon className='size-4' />
-                </a>
-                <a href='#'>
-                  <InstagramIcon className='size-4' />
-                </a>
-                <a href='#'>
-                  <LinkedinIcon className='size-4' />
-                </a>
-                <a href='#'>
+                <a href='#' aria-label='Twitter'>
                   <TwitterIcon className='size-4' />
+                </a>
+                <a href='#' aria-label='GitHub'>
+                  <GithubIcon className='size-4' />
                 </a>
               </div>
             </div>

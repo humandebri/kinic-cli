@@ -4,6 +4,7 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
+import Link from 'next/link'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -46,7 +47,15 @@ const renderMemoryRow = (memory: MemoryInstance, index: number) => {
 
   return (
     <TableRow key={`${memory.state}-${principalText}-${index}`}>
-      <TableCell className='font-medium'>{principalText}</TableCell>
+      <TableCell className='font-medium'>
+        {principalText !== '--' ? (
+          <Link href={`/memories/${principalText}`} className='underline decoration-dotted underline-offset-4'>
+            {principalText}
+          </Link>
+        ) : (
+          principalText
+        )}
+      </TableCell>
       <TableCell>
         <Badge className={`rounded-full border ${statusTone[memory.state]}`}>{memory.state}</Badge>
       </TableCell>

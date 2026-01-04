@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AuthClient } from '@dfinity/auth-client'
 import type { Identity } from '@dfinity/agent'
 
-import { DERIVATION_ORIGIN, IDENTITY_PROVIDER_URL } from '@/lib/ic-config'
+import { DERIVATION_ORIGIN, IDENTITY_PROVIDER_URL, II_SESSION_TTL_NS } from '@/lib/ic-config'
 
 export type IdentityState = {
   isReady: boolean
@@ -60,6 +60,7 @@ export const useIdentity = (): IdentityState => {
       client.login({
         identityProvider: IDENTITY_PROVIDER_URL,
         derivationOrigin: DERIVATION_ORIGIN,
+        maxTimeToLive: II_SESSION_TTL_NS,
         onSuccess: () => resolve(),
         onError: (error) => reject(error)
       })

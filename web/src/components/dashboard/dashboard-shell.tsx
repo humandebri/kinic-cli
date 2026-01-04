@@ -4,8 +4,8 @@
 // What: Renders dashboard content inside the shared app shell.
 // Why: Keeps the dashboard layout consistent across pages.
 import { RefreshCwIcon } from 'lucide-react'
+import Link from 'next/link'
 
-import TotalEarningCard from '@/components/shadcn-studio/blocks/widget-total-earning'
 import TransactionDatatable from '@/components/shadcn-studio/blocks/datatable-transaction'
 import AppShell from '@/components/layout/app-shell'
 import { Badge } from '@/components/ui/badge'
@@ -24,28 +24,20 @@ const DashboardShell = () => {
 
   const balanceValue =
     balance.balanceKinic !== null ? Number(balance.balanceKinic.toFixed(4)) : undefined
-  const balanceDetail = balance.isLoading
-    ? 'Loading balance...'
-    : balance.error
-      ? 'Balance unavailable'
-      : undefined
+  const balanceText = `${balanceValue ?? '--'} KINIC`
 
   return (
-    <AppShell pageTitle='Dashboard' pageSubtitle='Personal' identityState={identityState}>
-      <div className='grid grid-cols-2 gap-6 lg:grid-cols-3'>
-        <div className='grid gap-6 max-xl:col-span-full lg:max-xl:grid-cols-2'>
-          <TotalEarningCard
-            title='Token balance'
-            earning={balanceValue}
-            unitLabel='KINIC'
-            onRefresh={balance.refresh}
-            isRefreshing={balance.isLoading}
-            className='justify-between gap-5 sm:min-w-0 [&>[data-slot=card-content]]:space-y-7'
-          />
-        </div>
-
-        <Card className='col-span-full'>
-          <CardHeader className='flex items-center justify-between'>
+    <AppShell
+      pageTitle='Dashboard'
+      pageSubtitle='Personal'
+      identityState={identityState}
+      balanceText={balanceText}
+      onBalanceRefresh={balance.refresh}
+      isBalanceRefreshing={balance.isLoading}
+    >
+      <div className='grid gap-6'>
+        <Card>
+          <CardHeader className='flex flex-col items-start gap-2'>
             <div className='flex items-center gap-2'>
               <span className='text-lg font-semibold'>Memories</span>
               <Button
@@ -78,7 +70,16 @@ const DashboardShell = () => {
                     className='flex items-center justify-between gap-3 rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-sm'
                   >
                     <span className='font-medium'>
-                      {memory.principalText ? memory.principalText : '--'}
+                      {memory.principalText ? (
+                        <Link
+                          href={`/memories/${memory.principalText}`}
+                          className='underline decoration-dotted underline-offset-4'
+                        >
+                          {memory.principalText}
+                        </Link>
+                      ) : (
+                        '--'
+                      )}
                     </span>
                     <Badge className='rounded-full border border-zinc-200/70 bg-zinc-50 text-zinc-700'>
                       {memory.state}
@@ -90,8 +91,18 @@ const DashboardShell = () => {
           </CardContent>
         </Card>
 
-        <Card className='col-span-full w-full py-0'>
-          <TransactionDatatable data={transactionData} />
+        <Card>
+          <CardHeader className='flex flex-col items-start gap-2'>
+            <div className='flex items-center gap-2'>
+              <span className='text-lg font-semibold'>Recent activity</span>
+              <Button variant='ghost' size='sm' className='rounded-full text-xs text-zinc-500'>
+                View all
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TransactionDatatable data={transactionData} />
+          </CardContent>
         </Card>
       </div>
     </AppShell>
