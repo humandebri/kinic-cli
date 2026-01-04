@@ -16,11 +16,13 @@ import { transactionData } from '@/data/dashboard-transactions'
 import { useIdentity } from '@/hooks/use-identity'
 import { useLedgerBalance } from '@/hooks/use-ledger-balance'
 import { useMemories } from '@/hooks/use-memories'
+import { useSelectedMemory } from '@/hooks/use-selected-memory'
 
 const DashboardShell = () => {
   const identityState = useIdentity()
   const balance = useLedgerBalance(identityState.identity)
   const memories = useMemories(identityState.identity, identityState.isReady)
+  const { setSelectedMemoryId } = useSelectedMemory()
 
   const balanceValue =
     balance.balanceKinic !== null ? Number(balance.balanceKinic.toFixed(4)) : undefined
@@ -29,11 +31,11 @@ const DashboardShell = () => {
   return (
     <AppShell
       pageTitle='Dashboard'
-      pageSubtitle='Personal'
       identityState={identityState}
       balanceText={balanceText}
       onBalanceRefresh={balance.refresh}
       isBalanceRefreshing={balance.isLoading}
+      showFooter
     >
       <div className='grid gap-6'>
         <Card>
@@ -74,6 +76,7 @@ const DashboardShell = () => {
                         <Link
                           href={`/memories/${memory.principalText}`}
                           className='underline decoration-dotted underline-offset-4'
+                          onClick={() => setSelectedMemoryId(memory.principalText)}
                         >
                           {memory.principalText}
                         </Link>

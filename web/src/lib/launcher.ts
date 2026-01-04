@@ -17,8 +17,12 @@ export type LauncherState =
   | { Running: Principal }
 
 export type LauncherActor = {
+  get_price: () => Promise<bigint>
+  deploy_instance: (payload: string, vectorDim: bigint) => Promise<string>
   list_instance: () => Promise<LauncherState[]>
 }
+
+const DEFAULT_VECTOR_DIM = 1024n
 
 const launcherIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const State = IDL.Variant({
@@ -31,6 +35,8 @@ const launcherIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   })
 
   return IDL.Service({
+    get_price: IDL.Func([], [IDL.Nat], ['query']),
+    deploy_instance: IDL.Func([IDL.Text, IDL.Nat], [IDL.Text], []),
     list_instance: IDL.Func([], [IDL.Vec(State)], [])
   })
 }
@@ -49,4 +55,14 @@ export const createLauncherActor = async (identity?: Identity): Promise<Launcher
     agent,
     canisterId: LAUNCHER_CANISTER_ID
   })
+}
+
+export const deployMemoryInstance = async (
+  identity: Identity,
+  name: string,
+  description: string
+) => {
+  const actor = await createLauncherActor(identity)
+  const payload = JSON.stringify({ name, description })
+  return actor.deploy_instance(payload, DEFAULT_VECTOR_DIM)
 }

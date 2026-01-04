@@ -9,12 +9,16 @@ import type { Principal } from '@dfinity/principal'
 import { IC_HOST, isMainnetHost } from '@/lib/ic-config'
 
 export type MemoryActor = {
+  insert: (embedding: number[], text: string) => Promise<number>
+  search: (embedding: number[]) => Promise<Array<[number, string]>>
   add_new_user: (principal: Principal, role: number) => Promise<void>
   update_instance: (instance_pid_str: string) => Promise<void>
 }
 
 const memoryIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   return IDL.Service({
+    insert: IDL.Func([IDL.Vec(IDL.Float32), IDL.Text], [IDL.Nat32], []),
+    search: IDL.Func([IDL.Vec(IDL.Float32)], [IDL.Vec(IDL.Tuple(IDL.Float32, IDL.Text))], ['query']),
     add_new_user: IDL.Func([IDL.Principal, IDL.Nat8], [], []),
     update_instance: IDL.Func([IDL.Text], [], [])
   })

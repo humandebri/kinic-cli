@@ -33,6 +33,9 @@ import {
 import ProfileDropdown from '@/components/shadcn-studio/blocks/dropdown-profile'
 import { primarySection, pageSections } from '@/data/dashboard-nav'
 import type { IdentityState } from '@/hooks/use-identity'
+import { useMemories } from '@/hooks/use-memories'
+import { useMounted } from '@/hooks/use-mounted'
+import { useSelectedMemory } from '@/hooks/use-selected-memory'
 
 type AppShellProps = {
   pageTitle: string
@@ -41,6 +44,7 @@ type AppShellProps = {
   balanceText?: string | null
   onBalanceRefresh?: () => void
   isBalanceRefreshing?: boolean
+  showFooter?: boolean
   children: ReactNode
 }
 
@@ -57,8 +61,17 @@ const AppShell = ({
   balanceText,
   onBalanceRefresh,
   isBalanceRefreshing = false,
+  showFooter = false,
   children
 }: AppShellProps) => {
+  const mounted = useMounted()
+  const memories = useMemories(identityState.identity, identityState.isReady)
+  const { selectedMemoryId, setSelectedMemoryId } = useSelectedMemory()
+  const memoryOptions = memories.memories
+    .map((memory) => memory.principalText)
+    .filter((id): id is string => Boolean(id))
+  const memoryCount = identityState.isAuthenticated ? String(memoryOptions.length) : '0'
+
   return (
     <div className='flex min-h-dvh w-full'>
       <SidebarProvider>
@@ -90,21 +103,31 @@ const AppShell = ({
                 {section.label ? <SidebarGroupLabel>{section.label}</SidebarGroupLabel> : null}
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {section.items.map((item) => (
-                      <SidebarMenuItem key={item.label}>
-                        <SidebarMenuButton asChild>
-                          <a href={item.href}>
-                            {item.icon}
-                            <span>{item.label}</span>
-                          </a>
-                        </SidebarMenuButton>
-                        {item.badge ? (
-                          <SidebarMenuBadge className='bg-primary/10 rounded-full'>
-                            {item.badge}
-                          </SidebarMenuBadge>
-                        ) : null}
-                      </SidebarMenuItem>
-                    ))}
+                    {section.items.map((item) => {
+                      const isMemoryDetail = item.label === 'Memory Detail'
+                      const isMemoriesList = item.label === 'Memories'
+                      const href =
+                        isMemoryDetail && selectedMemoryId
+                          ? `/memories/${selectedMemoryId}`
+                          : item.href
+                      const badge = isMemoriesList ? memoryCount : item.badge
+
+                      return (
+                        <SidebarMenuItem key={item.label}>
+                          <SidebarMenuButton asChild>
+                            <a href={href}>
+                              {item.icon}
+                              <span>{item.label}</span>
+                            </a>
+                          </SidebarMenuButton>
+                          {badge ? (
+                            <SidebarMenuBadge className='bg-primary/10 rounded-full'>
+                              {badge}
+                            </SidebarMenuBadge>
+                          ) : null}
+                        </SidebarMenuItem>
+                      )
+                    })}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -142,8 +165,28 @@ const AppShell = ({
                 </Breadcrumb>
               </div>
               <div className='flex items-center gap-1.5'>
+                {identityState.isAuthenticated ? (
+                  <div className='flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 text-xs text-zinc-600 shadow-sm backdrop-blur'>
+                    <span className='uppercase tracking-[0.2em] text-[10px] text-zinc-500'>Memory</span>
+                    <select
+                      className='h-7 max-w-[12rem] bg-transparent text-sm text-zinc-700 outline-none'
+                      value={selectedMemoryId ?? ''}
+                      onChange={(event) =>
+                        setSelectedMemoryId(event.target.value ? event.target.value : null)
+                      }
+                      disabled={!memoryOptions.length}
+                    >
+                      <option value=''>{memories.isLoading ? 'Loading…' : 'Select'}</option>
+                      {memoryOptions.map((id) => (
+                        <option key={id} value={id}>
+                          {id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 {balanceText ? (
-                  <div className='flex items-center gap-1.5 rounded-full border border-zinc-200/70 bg-white/80 px-3  text-sm text-zinc-700 shadow-sm backdrop-blur'>
+                  <div className='flex items-center gap-1.5 rounded-full border border-zinc-200/70 bg-white/80 px-3 text-sm text-zinc-700 shadow-sm backdrop-blur'>
                     <span className='font-medium'>{balanceText}</span>
                     {onBalanceRefresh ? (
                       <Button
@@ -182,26 +225,28 @@ const AppShell = ({
               </div>
             </div>
           </header>
-          <main className='mx-auto size-full max-w-7xl flex-1 px-4 py-6 sm:px-6'>{children}</main>
-          <footer>
-            <div className='text-muted-foreground mx-auto flex size-full max-w-7xl items-center justify-between gap-3 px-4 py-3 max-sm:flex-col sm:gap-6 sm:px-6'>
-              <p className='text-sm text-balance max-sm:text-center'>
-                {`(c)${new Date().getFullYear()}`}{' '}
-                <a href='#' className='text-primary'>
-                  Kinic
-                </a>
-                , Personal memory workspace
-              </p>
-              <div className='flex items-center gap-5'>
-                <a href='#' aria-label='Twitter'>
-                  <TwitterIcon className='size-4' />
-                </a>
-                <a href='#' aria-label='GitHub'>
-                  <GithubIcon className='size-4' />
-                </a>
+          <main className='mx-auto size-full max-w-7xl flex-1 px-3 py-4 sm:px-4'>{children}</main>
+          {showFooter && mounted ? (
+            <footer>
+              <div className='text-muted-foreground mx-auto flex size-full max-w-7xl items-center justify-between gap-3 px-4 py-3 max-sm:flex-col sm:gap-6 sm:px-6'>
+                <p className='text-sm text-balance max-sm:text-center'>
+                  {`(c)${new Date().getFullYear()}`}{' '}
+                  <a href='#' className='text-primary'>
+                    Kinic
+                  </a>
+                  , Personal memory workspace
+                </p>
+                <div className='flex items-center gap-5'>
+                  <a href='#' aria-label='Twitter'>
+                    <TwitterIcon className='size-4' />
+                  </a>
+                  <a href='#' aria-label='GitHub'>
+                    <GithubIcon className='size-4' />
+                  </a>
+                </div>
               </div>
-            </div>
-          </footer>
+            </footer>
+          ) : null}
         </div>
       </SidebarProvider>
     </div>

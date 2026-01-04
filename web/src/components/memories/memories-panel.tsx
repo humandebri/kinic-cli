@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 import type { IdentityState } from '@/hooks/use-identity'
 import { type MemoryInstance, type MemoryState, useMemories } from '@/hooks/use-memories'
+import { useSelectedMemory } from '@/hooks/use-selected-memory'
 
 const statusTone: Record<MemoryState, string> = {
   Running: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -41,7 +42,11 @@ const renderSkeletonRows = () => {
   ))
 }
 
-const renderMemoryRow = (memory: MemoryInstance, index: number) => {
+const renderMemoryRow = (
+  memory: MemoryInstance,
+  index: number,
+  onSelect: (id: string) => void
+) => {
   const detailText = memory.detail ?? '--'
   const principalText = memory.principalText ?? '--'
 
@@ -49,7 +54,11 @@ const renderMemoryRow = (memory: MemoryInstance, index: number) => {
     <TableRow key={`${memory.state}-${principalText}-${index}`}>
       <TableCell className='font-medium'>
         {principalText !== '--' ? (
-          <Link href={`/memories/${principalText}`} className='underline decoration-dotted underline-offset-4'>
+          <Link
+            href={`/memories/${principalText}`}
+            className='underline decoration-dotted underline-offset-4'
+            onClick={() => onSelect(principalText)}
+          >
             {principalText}
           </Link>
         ) : (
@@ -69,6 +78,7 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
     identityState.identity,
     identityState.isReady
   )
+  const { setSelectedMemoryId } = useSelectedMemory()
 
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : 'Not updated yet'
   const showAuthNotice = identityState.isReady && !identityState.isAuthenticated
@@ -132,7 +142,9 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
                   </TableCell>
                 </TableRow>
               ) : null}
-              {!isLoading && !error && memories.length ? memories.map(renderMemoryRow) : null}
+              {!isLoading && !error && memories.length
+                ? memories.map((memory, index) => renderMemoryRow(memory, index, setSelectedMemoryId))
+                : null}
             </TableBody>
           </Table>
         </CardContent>

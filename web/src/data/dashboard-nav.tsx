@@ -7,14 +7,13 @@ import {
   ChartNoAxesCombinedIcon,
   ChartPieIcon,
   ChartSplineIcon,
-  ClipboardListIcon,
+  CirclePlusIcon,
   Clock9Icon,
   CrownIcon,
   HashIcon,
   SettingsIcon,
   SquareActivityIcon,
-  Undo2Icon,
-  UsersIcon
+  Undo2Icon
 } from 'lucide-react'
 
 export type SidebarLink = {
@@ -34,8 +33,7 @@ export const primarySection: SidebarSection = {
     {
       label: 'Dashboard',
       href: '/',
-      icon: <ChartNoAxesCombinedIcon />,
-      badge: '3'
+      icon: <ChartNoAxesCombinedIcon />
     }
   ]
 }
@@ -45,18 +43,16 @@ export const pageSections: SidebarSection[] = [
     label: 'Pages',
     items: [
       { label: 'Memories', href: '/memories', icon: <ChartSplineIcon /> },
-      { label: 'Insert', href: '#', icon: <ArrowRightLeftIcon /> },
-      { label: 'Search', href: '#', icon: <ChartPieIcon /> },
-      { label: 'Memory Detail', href: '#', icon: <HashIcon />, badge: '1' },
-      { label: 'ACL / Config', href: '#', icon: <UsersIcon /> }
+      { label: 'Insert', href: '/insert', icon: <ArrowRightLeftIcon /> },
+      { label: 'Search', href: '/search', icon: <ChartPieIcon /> },
+      { label: 'Memory Detail', href: '/memories/selected', icon: <HashIcon /> },
+      { label: 'Add Memory', href: '/memories/add', icon: <CirclePlusIcon /> }
     ]
   },
   {
     label: 'Utilities',
     items: [
-      { label: 'Balance', href: '#', icon: <SquareActivityIcon /> },
       { label: 'Identity', href: '#', icon: <CalendarClockIcon /> },
-      { label: 'Embedding Endpoint', href: '#', icon: <ClipboardListIcon /> },
       { label: 'Updates', href: '#', icon: <Undo2Icon /> },
       { label: 'Settings', href: '#', icon: <SettingsIcon /> }
     ]

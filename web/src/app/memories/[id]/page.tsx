@@ -4,7 +4,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Principal } from '@dfinity/principal'
 
 import AppShell from '@/components/layout/app-shell'
@@ -12,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useIdentity } from '@/hooks/use-identity'
+import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
 import { useCanisterStatus } from '@/hooks/use-canister-status'
 
@@ -25,8 +25,8 @@ const roleValueMap: Record<RoleOption, number> = {
 
 const MemoryDetailPage = () => {
   const identityState = useIdentity()
-  const params = useParams<{ id: string }>()
-  const memoryId = params?.id ?? ''
+  const { selectedMemoryId } = useSelectedMemory()
+  const memoryId = selectedMemoryId ?? ''
   const canisterStatus = useCanisterStatus(identityState.identity, memoryId)
   const [principalInput, setPrincipalInput] = useState('')
   const [role, setRole] = useState<RoleOption>('writer')
@@ -85,7 +85,9 @@ const MemoryDetailPage = () => {
         <Card>
           <CardHeader className='flex flex-col items-start gap-2'>
             <span className='text-lg font-semibold'>Memory</span>
-            <span className='text-muted-foreground text-sm'>Details are not available yet.</span>
+            <span className='text-muted-foreground text-sm'>
+              {memoryId ? 'Details are not available yet.' : 'Select a memory from the header.'}
+            </span>
           </CardHeader>
           <CardContent className='space-y-3'>
             <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-sm'>
