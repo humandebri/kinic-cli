@@ -100,7 +100,7 @@ cargo run -- --ii login
 cargo run -- --ii list
 ```
 
-Delegations are stored at `~/.config/kinic/identity.json` (default TTL: 30 days).
+Delegations are stored at `~/.config/kinic/identity.json` (default TTL: 6 hours).
 The login flow uses a local callback on port `8620`.
 
 **DM https://x.com/wyatt_benno for KINIC prod tokens** with your principal ID.

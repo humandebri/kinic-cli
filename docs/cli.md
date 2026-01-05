@@ -59,7 +59,7 @@ cargo run -- --identity alice create \
 
 ### Internet Identity flow (--ii)
 
-First, open the browser login flow and store a delegation (default TTL: 30 days):
+First, open the browser login flow and store a delegation (default TTL: 6 hours):
 
 ```bash
 cargo run -- --ii login

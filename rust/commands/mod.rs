@@ -7,10 +7,10 @@ pub mod balance;
 pub mod config;
 pub mod convert_pdf;
 pub mod create;
+pub mod ii_login;
 pub mod insert;
 pub mod insert_pdf;
 pub mod list;
-pub mod login;
 pub mod search;
 pub mod update;
 
@@ -32,6 +32,6 @@ pub async fn run_command(command: Command, ctx: CommandContext) -> Result<()> {
         Command::Update(args) => update::handle(args, &ctx).await,
         Command::Balance(args) => balance::handle(args, &ctx).await,
         Command::AskAi(args) => ask_ai::handle(args, &ctx).await,
-        Command::Login(args) => login::handle(args, &ctx).await,
+        Command::Login(args) => ii_login::handle(args, &ctx).await,
     }
 }
