@@ -54,7 +54,7 @@ export const pageSections: SidebarSection[] = [
     items: [
       { label: 'Identity', href: '#', icon: <CalendarClockIcon /> },
       { label: 'Updates', href: '#', icon: <Undo2Icon /> },
-      { label: 'Settings', href: '#', icon: <SettingsIcon /> }
+      { label: 'Settings', href: '/settings', icon: <SettingsIcon /> }
     ]
   }
 ]

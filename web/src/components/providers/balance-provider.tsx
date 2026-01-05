@@ -10,6 +10,8 @@ import { useLedgerBalance } from '@/hooks/use-ledger-balance'
 
 type BalanceContextValue = {
   balanceText: string
+  balanceBase: bigint | null
+  balanceKinic: number | null
   isLoading: boolean
   refresh: () => void
 }
@@ -26,10 +28,12 @@ export const BalanceProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo(
     () => ({
       balanceText,
+      balanceBase: balance.balanceBase,
+      balanceKinic: balance.balanceKinic,
       isLoading: balance.isLoading,
       refresh: balance.refresh
     }),
-    [balanceText, balance.isLoading, balance.refresh]
+    [balanceText, balance.balanceBase, balance.balanceKinic, balance.isLoading, balance.refresh]
   )
 
   return <BalanceContext.Provider value={value}>{children}</BalanceContext.Provider>
