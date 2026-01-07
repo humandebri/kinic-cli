@@ -71,6 +71,24 @@ pub(crate) async fn insert_memory(
     Ok(chunk_count)
 }
 
+pub(crate) async fn insert_memory_raw(
+    use_mainnet: bool,
+    identity: String,
+    memory_id: String,
+    tag: String,
+    text: String,
+    embedding: Vec<f32>,
+) -> Result<usize> {
+    let client = build_memory_client(use_mainnet, identity, memory_id).await?;
+    let payload = json!({
+        "tag": &tag,
+        "sentence": &text
+    })
+    .to_string();
+    client.insert(embedding, &payload).await?;
+    Ok(1)
+}
+
 pub(crate) async fn insert_memory_pdf(
     use_mainnet: bool,
     identity: String,

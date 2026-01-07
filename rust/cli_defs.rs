@@ -43,6 +43,8 @@ pub enum Command {
     List(ListArgs),
     #[command(about = "Insert text into an existing memory canister")]
     Insert(InsertArgs),
+    #[command(about = "Insert a precomputed embedding into a memory canister")]
+    InsertRaw(InsertRawArgs),
     #[command(about = "Insert a PDF (converted to markdown) into an existing memory canister")]
     InsertPdf(InsertPdfArgs),
     #[command(about = "Convert a PDF to markdown and print it (no insert)")]
@@ -90,6 +92,29 @@ pub struct InsertArgs {
         help = "Read markdown content from a file (conflicts with --text)"
     )]
     pub file_path: Option<PathBuf>,
+
+    #[arg(long, required = true, help = "Tag metadata stored alongside the text")]
+    pub tag: String,
+}
+
+#[derive(Args, Debug)]
+pub struct InsertRawArgs {
+    #[arg(
+        long,
+        required = true,
+        help = "Principal of the target memory canister"
+    )]
+    pub memory_id: String,
+
+    #[arg(
+        long,
+        required = true,
+        help = "Embedding as a JSON array of floats, e.g. [0.1, 0.2]"
+    )]
+    pub embedding: String,
+
+    #[arg(long, required = true, help = "Text payload to store with the embedding")]
+    pub text: String,
 
     #[arg(long, required = true, help = "Tag metadata stored alongside the text")]
     pub tag: String,

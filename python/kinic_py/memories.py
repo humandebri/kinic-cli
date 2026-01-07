@@ -33,6 +33,10 @@ class KinicMemories:
         """Insert markdown loaded from disk."""
         return insert_markdown_file(self.identity, memory_id, tag, path, ic=self.ic)
 
+    def insert_raw(self, memory_id: str, tag: str, text: str, embedding: Sequence[float]) -> int:
+        """Insert a precomputed embedding with text."""
+        return insert_raw(self.identity, memory_id, tag, text, embedding, ic=self.ic)
+
     def insert_pdf_file(self, memory_id: str, tag: str, path: str) -> int:
         """Convert a PDF to markdown and insert it."""
         return insert_pdf_file(self.identity, memory_id, tag, path, ic=self.ic)
@@ -121,6 +125,18 @@ def insert_markdown_file(
     ic: bool | None = None,
 ) -> int:
     return native.insert_memory(identity, memory_id, tag, file_path=path, ic=ic)
+
+
+def insert_raw(
+    identity: str,
+    memory_id: str,
+    tag: str,
+    text: str,
+    embedding: Sequence[float],
+    *,
+    ic: bool | None = None,
+) -> int:
+    return native.insert_memory_raw(identity, memory_id, tag, text, list(embedding), ic=ic)
 
 
 def insert_pdf_file(
