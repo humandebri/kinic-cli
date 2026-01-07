@@ -76,7 +76,12 @@ cargo run -- --ii create \
 
 Notes:
 - Delegations are stored at `~/.config/kinic/identity.json`.
-- The login flow uses a local callback on port `8620`.
+- The login flow starts a localhost callback on a random free port.
+- The CLI opens a web login page and passes the callback URL as a query param.
+- Optional env vars:
+  - `KINIC_WEB_LOGIN_URL` (default: `https://app.example.com/cli-login`)
+  - `KINIC_DERIVATION_ORIGIN` (default: `https://app.example.com`)
+- `KINIC_DERIVATION_ORIGIN` should match the web login page origin.
 
 ### Convert PDF to markdown (inspect only)
 
