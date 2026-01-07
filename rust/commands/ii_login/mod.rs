@@ -7,7 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use ic_agent::export::Principal;
 use ic_agent::identity::{Delegation, SignedDelegation};
 use reqwest::Url;
-use tokio::{net::TcpListener, time::timeout};
+use tokio::{net::TcpListener, sync::oneshot, time::timeout};
 
 use crate::{
     cli::LoginArgs,
@@ -25,7 +25,7 @@ mod http;
 mod payload;
 
 use crypto::{generate_box_keypair, generate_nonce_hex};
-use http::{CallbackState, accept_callback};
+use http::{CallbackState, spawn_callback_server};
 use payload::{BrowserSignedDelegation, delegation_expiration};
 
 const IDENTITY_PROVIDER_URL: &str = "https://id.ai/#authorize";
@@ -73,19 +73,25 @@ pub async fn handle(_args: LoginArgs, ctx: &CommandContext) -> Result<()> {
 
     open_browser_url(&full_login_url)?;
 
-    let mut callback_state = CallbackState::new(
+    let (callback_state, callback_rx) = CallbackState::new(
         nonce,
         session.public_key.clone(),
         derivation_origin.clone(),
+        derivation_origin.clone(),
         box_keypair.private_key,
     );
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let server_handle = spawn_callback_server(listener, callback_state, shutdown_rx);
 
-    let callback = timeout(
-        Duration::from_secs(CALLBACK_TIMEOUT_SECS),
-        accept_callback(listener, &mut callback_state, &derivation_origin),
-    )
-    .await
-    .context("Login timed out")??;
+    let callback = timeout(Duration::from_secs(CALLBACK_TIMEOUT_SECS), callback_rx)
+        .await
+        .context("Login timed out")?
+        .context("Login callback channel closed")?;
+
+    let _ = shutdown_tx.send(());
+    if let Ok(server_result) = server_handle.await && let Err(err) = server_result {
+        eprintln!("II login callback server failed: {err}");
+    }
 
     let delegations = convert_delegations(callback.payload.delegations, &session_pubkey)?;
     let expiration_ns = delegation_expiration(&delegations)?;
