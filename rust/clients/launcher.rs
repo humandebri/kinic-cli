@@ -5,7 +5,10 @@ use candid::{CandidType, Decode, Deserialize, Nat};
 use ic_agent::{Agent, export::Principal};
 use icrc_ledger_types::{
     icrc1::{account::Account, transfer::TransferError},
-    icrc2::approve::{ApproveArgs, ApproveError},
+    icrc2::{
+        approve::{ApproveArgs, ApproveError},
+        transfer_from::TransferFromError,
+    },
 };
 use serde_json::json;
 use thiserror::Error;
@@ -156,10 +159,17 @@ enum DeployInstanceError {
     InstallCanister,
 
     #[error("balance check failed: {0}")]
-    CheckBalance(TransferError),
+    CheckBalance(TransferResponseError),
 
     #[error("already running")]
     AlreadyRunning,
+}
+
+#[derive(CandidType, candid::Deserialize, Clone, Debug)]
+enum TransferResponseError {
+    TransferError(TransferError),
+    TransferFromError(TransferFromError),
+    CallReject(String),
 }
 
 #[derive(CandidType, candid::Deserialize, Clone, Debug)]
