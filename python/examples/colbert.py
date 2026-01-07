@@ -98,16 +98,32 @@ def rerank_example(model: models.ColBERT) -> None:
     print("reranked documents:", reranked_documents)
 
 
+def retrieval_and_rerank(model: models.ColBERT):
+    # todo:
+    # 1. kinicのメモリを初期化する
+    # 2. documentsをいくつか用意する
+    # 3. それらのbag-of-embeddingsを作る
+    # 4. bag-of-embeddingsのvectorsを、同じdocument-idでタグ付けして、insertする
+    # 5. queryを用意する
+    # 6. queryのbag-of-embeddingsを作る
+    # 7. 全てのvectorsに対して、dbに検索をかける
+    # 8. 結果として得られたdocument-id(tagのこと)をまとめる
+    # 9. 全てのtagごとに、memory.tagged_embeddings(tag)を呼んで、tagごとのbag-of-embeddingsを得る
+    # 10. MaxSimで、documentをrerankする
+
+    return
+
+
 def main() -> None:
     # Load the LFM2-ColBERT-350M model from Hugging Face.
     model = models.ColBERT(
         model_name_or_path="LiquidAI/LFM2-ColBERT-350M",
     )
 
-    # Build an index, then run retrieval and reranking examples.
-    index = build_index(model)
-    retrieve_top_k(index, model)
-    rerank_example(model)
+    # Create a new vector-database
+    index = KinicMemories("alice")
+
+    retrieval_and_rerank(model)
 
 
 if __name__ == "__main__":
