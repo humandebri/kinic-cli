@@ -20,6 +20,7 @@ export type LauncherActor = {
   get_price: () => Promise<bigint>
   deploy_instance: (payload: string, vectorDim: bigint) => Promise<string>
   list_instance: () => Promise<LauncherState[]>
+  update_instance: (instance_pid_str: string) => Promise<void>
 }
 
 const DEFAULT_VECTOR_DIM = 1024n
@@ -37,7 +38,8 @@ const launcherIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   return IDL.Service({
     get_price: IDL.Func([], [IDL.Nat], ['query']),
     deploy_instance: IDL.Func([IDL.Text, IDL.Nat], [IDL.Text], []),
-    list_instance: IDL.Func([], [IDL.Vec(State)], [])
+    list_instance: IDL.Func([], [IDL.Vec(State)], []),
+    update_instance: IDL.Func([IDL.Text], [], [])
   })
 }
 

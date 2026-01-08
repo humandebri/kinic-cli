@@ -1,10 +1,10 @@
 // Where: Next.js app entry page.
-// What: Renders the dashboard shell layout.
-// Why: Uses the approved frontimage dashboard design as the homepage.
-import DashboardShell from '@/components/dashboard/dashboard-shell'
+// What: Redirects to the memories page.
+// Why: The dashboard page is removed in favor of memories as the landing route.
+import { redirect } from 'next/navigation'
 
 const HomePage = () => {
-  return <DashboardShell />
+  redirect('/memories')
 }
 
 export default HomePage

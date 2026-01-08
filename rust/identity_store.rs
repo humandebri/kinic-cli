@@ -146,12 +146,29 @@ pub fn save_identity(path: &Path, stored: &StoredIdentity) -> Result<()> {
             .context("Failed to write identity payload")?;
         file.sync_all().context("Failed to sync identity file")?;
     }
-    fs::rename(&tmp_path, path).with_context(|| {
-        format!(
-            "Failed to move temp identity file into place at {}",
-            path.display()
-        )
-    })?;
+    if let Err(err) = fs::rename(&tmp_path, path) {
+        if path.exists() {
+            fs::remove_file(path).with_context(|| {
+                format!(
+                    "Failed to remove existing identity file at {}",
+                    path.display()
+                )
+            })?;
+            fs::rename(&tmp_path, path).with_context(|| {
+                format!(
+                    "Failed to move temp identity file into place at {}",
+                    path.display()
+                )
+            })?;
+        } else {
+            return Err(err).with_context(|| {
+                format!(
+                    "Failed to move temp identity file into place at {}",
+                    path.display()
+                )
+            });
+        }
+    }
     Ok(())
 }
 

@@ -253,16 +253,26 @@ const AppShell = ({
                         isMemoryDetail && selectedMemoryId
                           ? `/memories/${selectedMemoryId}`
                           : item.href
+                      const isDisabled = Boolean(
+                        item.disabled || href === '#' || (isMemoryDetail && !selectedMemoryId)
+                      )
                       const badge = isMemoriesList ? memoryCount : item.badge
 
                       return (
                         <SidebarMenuItem key={item.label}>
-                          <SidebarMenuButton asChild>
-                            <a href={href}>
+                          {isDisabled ? (
+                            <SidebarMenuButton aria-disabled className='cursor-not-allowed'>
                               {item.icon}
                               <span>{item.label}</span>
-                            </a>
-                          </SidebarMenuButton>
+                            </SidebarMenuButton>
+                          ) : (
+                            <SidebarMenuButton asChild>
+                              <a href={href}>
+                                {item.icon}
+                                <span>{item.label}</span>
+                              </a>
+                            </SidebarMenuButton>
+                          )}
                           {badge ? (
                             <SidebarMenuBadge className='bg-primary/10 rounded-full'>
                               {badge}

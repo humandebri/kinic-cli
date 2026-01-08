@@ -41,6 +41,21 @@ impl MemoryClient {
         Ok(results)
     }
 
+    pub async fn tagged_embeddings(&self, tag: String) -> Result<Vec<Vec<f32>>> {
+        let payload = encode_tagged_embeddings_args(tag)?;
+        let response = self
+            .agent
+            .query(&self.canister_id, "tagged_embeddings")
+            .with_arg(payload)
+            .call()
+            .await
+            .context("Failed to call tagged_embeddings on memory canister")?;
+
+        let results = Decode!(&response, Vec<Vec<f32>>)
+            .context("Failed to decode tagged_embeddings response")?;
+        Ok(results)
+    }
+
     pub async fn add_new_user(&self, principal: Principal, role: u8) -> Result<()> {
         let payload = encode_add_user_args(principal, role)?;
         self.agent
@@ -53,8 +68,33 @@ impl MemoryClient {
         Ok(())
     }
 
+    pub async fn reset(&self, dim: usize) -> Result<()> {
+        let payload = encode_reset_args(dim)?;
+        let response = self
+            .agent
+            .update(&self.canister_id, "reset")
+            .with_arg(payload)
+            .call_and_wait()
+            .await
+            .context("Failed to call reset on memory canister")?;
+
+        Decode!(&response, ()).context("Failed to decode reset response")?;
+        Ok(())
+    }
+
     pub fn canister_id(&self) -> &Principal {
         &self.canister_id
+    }
+
+    pub async fn update_instance(&self, instance_pid_str: String) -> Result<()> {
+        let payload = encode_update_instance_args(instance_pid_str)?;
+        self.agent
+            .update(&self.canister_id, "update_instance")
+            .with_arg(payload)
+            .call_and_wait()
+            .await
+            .context("Failed to call update_instance on memory canister")?;
+        Ok(())
     }
 }
 
@@ -66,4 +106,16 @@ fn encode_search_args(embedding: Vec<f32>) -> Result<Vec<u8>> {
 }
 fn encode_add_user_args(principal: Principal, role: u8) -> Result<Vec<u8>> {
     Ok(candid::encode_args((principal, role))?)
+}
+
+fn encode_update_instance_args(instance_pid_str: String) -> Result<Vec<u8>> {
+    Ok(candid::encode_one(instance_pid_str)?)
+}
+
+fn encode_tagged_embeddings_args(tag: String) -> Result<Vec<u8>> {
+    Ok(candid::encode_one(tag)?)
+}
+
+fn encode_reset_args(dim: usize) -> Result<Vec<u8>> {
+    Ok(candid::encode_one(dim)?)
 }

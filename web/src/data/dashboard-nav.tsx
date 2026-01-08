@@ -4,8 +4,6 @@
 import type { ReactNode } from 'react'
 import {
   ArrowRightLeftIcon,
-  CalendarClockIcon,
-  ChartNoAxesCombinedIcon,
   ChartPieIcon,
   ChartSplineIcon,
   CirclePlusIcon,
@@ -19,6 +17,7 @@ export type SidebarLink = {
   href: string
   icon: ReactNode
   badge?: string
+  disabled?: boolean
 }
 
 export type SidebarSection = {
@@ -27,13 +26,7 @@ export type SidebarSection = {
 }
 
 export const primarySection: SidebarSection = {
-  items: [
-    {
-      label: 'Dashboard',
-      href: '/',
-      icon: <ChartNoAxesCombinedIcon />
-    }
-  ]
+  items: []
 }
 
 export const pageSections: SidebarSection[] = [
@@ -43,15 +36,14 @@ export const pageSections: SidebarSection[] = [
       { label: 'Memories', href: '/memories', icon: <ChartSplineIcon /> },
       { label: 'Insert', href: '/insert', icon: <ArrowRightLeftIcon /> },
       { label: 'Search', href: '/search', icon: <ChartPieIcon /> },
-      { label: 'Memory Detail', href: '/memories/selected', icon: <HashIcon /> },
-      { label: 'Add Memory', href: '/memories/add', icon: <CirclePlusIcon /> }
+      { label: 'Memory Detail', href: '/memories/selected', icon: <HashIcon /> }
     ]
   },
   {
     label: 'Utilities',
     items: [
-      { label: 'Identity', href: '#', icon: <CalendarClockIcon /> },
-      { label: 'Updates', href: '#', icon: <Undo2Icon /> },
+      { label: 'Add Memory', href: '/memories/add', icon: <CirclePlusIcon /> },
+      { label: 'Updates', href: '#', icon: <Undo2Icon />, disabled: true },
       { label: 'Settings', href: '/settings', icon: <SettingsIcon /> }
     ]
   }

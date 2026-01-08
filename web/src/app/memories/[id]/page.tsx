@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { useIdentityState } from '@/components/providers/identity-provider'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
+import { createLauncherActor } from '@/lib/launcher'
 import { useCanisterStatus } from '@/hooks/use-canister-status'
 
 type RoleOption = 'admin' | 'writer' | 'reader'
@@ -68,7 +69,7 @@ const MemoryDetailPage = () => {
     setUpdateStatus(null)
 
     try {
-      const actor = await createMemoryActor(identityState.identity, memoryId)
+      const actor = await createLauncherActor(identityState.identity)
       await actor.update_instance(memoryId)
       setUpdateStatus('Update triggered.')
     } catch (error) {
