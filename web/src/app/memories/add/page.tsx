@@ -5,8 +5,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Principal } from '@dfinity/principal'
+import type { IcrcWallet } from '@dfinity/oisy-wallet-signer/icrc-wallet'
 import { Principal as IcrcPrincipal } from '@icp-sdk/core/principal'
-import type { TransferParams } from '@icp-sdk/canisters/ledger/icrc'
 
 import AppShell from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,8 @@ import {
 } from '@/lib/ledger'
 import { createLauncherActor, deployMemoryInstance } from '@/lib/launcher'
 import { connectOisy, connectPlug, type WalletConnection } from '@/lib/wallets'
+
+type OisyTransferParams = Parameters<IcrcWallet['transfer']>[0]['params']
 
 const formatPrice = (value: bigint | null) => {
   if (value === null) return '--'
@@ -154,16 +156,20 @@ const AddMemoryPage = () => {
         const height = await transferIcrc1(actor, args)
         setTransferHeight(height)
       } else {
-        const emptyLedgerSubaccount: [] = []
-        const icrcParams: TransferParams = {
+        const ledgerSubaccount: [] | [Uint8Array] = wallet.account.subaccount
+          ? [wallet.account.subaccount]
+          : []
+        const fromSubaccount = wallet.account.subaccount ?? undefined
+        const ownerPrincipal = IcrcPrincipal.fromText(identityState.principalText)
+        const icrcParams = {
           to: {
-            owner: IcrcPrincipal.fromText(identityState.principalText),
-            subaccount: emptyLedgerSubaccount
+            owner: ownerPrincipal,
+            subaccount: ledgerSubaccount
           },
           amount: transferAmount,
           created_at_time: BigInt(Date.now()) * 1_000_000n,
-          from_subaccount: wallet.account.subaccount ?? undefined
-        }
+          from_subaccount: fromSubaccount
+        } satisfies OisyTransferParams
         const height = await wallet.wallet.transfer({
           params: icrcParams,
           owner: wallet.account.principal,
