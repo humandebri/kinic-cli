@@ -218,11 +218,11 @@ const AddMemoryPage = () => {
   }
 
   return (
-    <AppShell pageTitle='Add Memory' identityState={identityState}>
+    <AppShell pageTitle='Memories' pageSubtitle='Mint Memory' identityState={identityState}>
       <div className='grid gap-6'>
         <Card>
           <CardHeader className='flex flex-col items-start gap-2'>
-            <span className='text-lg font-semibold'>Add Memory</span>
+            <span className='text-lg font-semibold'>Mint Memory</span>
           </CardHeader>
           <CardContent className='space-y-4'>
             <div className='flex flex-col gap-2'>

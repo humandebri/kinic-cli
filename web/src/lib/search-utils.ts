@@ -12,6 +12,10 @@ export type ParsedResult = {
 const SNIPPET_LENGTH = 240
 
 export const parseResultText = (rawText: string) => {
+  const decodedReject = decodeRejectMessage(rawText)
+  if (decodedReject) {
+    return { sentence: decodedReject, tag: undefined }
+  }
   try {
     const parsed = JSON.parse(rawText) as { tag?: unknown; sentence?: unknown }
     if (parsed && typeof parsed === 'object') {
@@ -57,4 +61,58 @@ export const extractRelatedTerms = (sentences: string[], exclude: Set<string>) =
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([token]) => token)
+}
+
+export const parseRejectMessage = (rawText: string): string | null => {
+  const decoded = decodeRejectMessage(rawText)
+  if (decoded) return decoded
+  const rejectText = rawText.match(/Reject text:\s*([^\n]+)/i)
+  if (rejectText) {
+    const code = rawText.match(/Error code:\s*([A-Za-z0-9_]+)/i)
+    const suffix = code ? ` (${code[1].trim()})` : ''
+    return `Rejected: ${rejectText[1].trim()}${suffix}`
+  }
+  const hexMatch = rawText.match(/\b[0-9a-fA-F]{40,}\b/)
+  if (hexMatch) {
+    const fromHex = decodeRejectMessage(hexMatch[0])
+    if (fromHex) return fromHex
+  }
+  const explicit = rawText.match(/reject_message[^A-Za-z0-9]+([A-Za-z0-9 _-]+)/i)
+  if (explicit) {
+    return `Rejected: ${explicit[1].trim()}`
+  }
+  return null
+}
+
+const decodeRejectMessage = (rawText: string): string | null => {
+  if (!isHexString(rawText)) return null
+  const decoded = decodeHexToUtf8(rawText)
+  if (!decoded) return null
+  if (!decoded.includes('reject_message')) return null
+  const message = extractRejectMessage(decoded)
+  if (message) {
+    return `Rejected: ${message}`
+  }
+  return `Rejected: ${decoded.slice(0, 200).trim()}`
+}
+
+const isHexString = (value: string) => /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0
+
+const decodeHexToUtf8 = (value: string) => {
+  try {
+    const bytes = new Uint8Array(value.length / 2)
+    for (let i = 0; i < value.length; i += 2) {
+      bytes[i / 2] = Number.parseInt(value.slice(i, i + 2), 16)
+    }
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return null
+  }
+}
+
+const extractRejectMessage = (value: string) => {
+  const printable = value.replace(/[^\x20-\x7E]+/g, ' ')
+  const match = printable.match(/reject_message[^A-Za-z0-9]+([A-Za-z0-9 _-]+)/)
+  if (!match) return null
+  return match[1].trim()
 }

@@ -42,7 +42,7 @@ export const pageSections: SidebarSection[] = [
   {
     label: 'Utilities',
     items: [
-      { label: 'Add Memory', href: '/memories/add', icon: <CirclePlusIcon /> },
+      { label: 'Mint Memory', href: '/memories/add', icon: <CirclePlusIcon /> },
       { label: 'Updates', href: '#', icon: <Undo2Icon />, disabled: true },
       { label: 'Settings', href: '/settings', icon: <SettingsIcon /> }
     ]

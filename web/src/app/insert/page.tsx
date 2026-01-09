@@ -4,12 +4,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ShieldAlertIcon } from 'lucide-react'
 
 import AppShell from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useIdentityState } from '@/components/providers/identity-provider'
+import { useMemories } from '@/hooks/use-memories'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
 import { lateChunking } from '@/lib/embedding'
@@ -32,6 +34,7 @@ const isMarkdownFile = (file: File) => {
 
 const InsertPage = () => {
   const identityState = useIdentityState()
+  const memories = useMemories(identityState.identity, identityState.isReady)
   const { selectedMemoryId } = useSelectedMemory()
   const [fileName, setFileName] = useState<string | null>(null)
   const [uploadKind, setUploadKind] = useState<UploadKind | null>(null)
@@ -42,8 +45,13 @@ const InsertPage = () => {
   const [status, setStatus] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ total: number; done: number } | null>(null)
 
+  const isOwner = useMemo(() => {
+    if (!selectedMemoryId) return false
+    return memories.memories.some((memory) => memory.principalText === selectedMemoryId)
+  }, [memories.memories, selectedMemoryId])
+
   const canSubmit = Boolean(
-    identityState.isAuthenticated && selectedMemoryId && markdown.trim() && tag.trim()
+    identityState.isAuthenticated && selectedMemoryId && isOwner && markdown.trim() && tag.trim()
   )
 
   const previewText = useMemo(() => {
@@ -130,7 +138,18 @@ const InsertPage = () => {
                 <div className='flex flex-wrap items-center gap-2'>
                   <span className='text-muted-foreground'>Selected</span>
                   <span className='font-mono text-sm text-zinc-900'>{selectedMemoryId ?? '--'}</span>
+                  {selectedMemoryId && identityState.isAuthenticated && !isOwner ? (
+                    <span className='inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700'>
+                      <ShieldAlertIcon className='size-3' />
+                      NOT AUTHORIZED
+                    </span>
+                  ) : null}
                 </div>
+                {selectedMemoryId && identityState.isAuthenticated && !isOwner ? (
+                  <div className='mt-2 text-xs text-amber-700'>
+                    You are not authorized for this canister. Insert is disabled.
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className='flex flex-col gap-2'>

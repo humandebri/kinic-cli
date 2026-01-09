@@ -18,7 +18,7 @@ import { useMemories } from '@/hooks/use-memories'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
 import { fetchEmbedding } from '@/lib/embedding'
-import { extractRelatedTerms, parseResultText, type ParsedResult } from '@/lib/search-utils'
+import { extractRelatedTerms, parseRejectMessage, parseResultText, type ParsedResult } from '@/lib/search-utils'
 
 const HISTORY_KEY = 'kinic.search.history'
 const SAVED_KEY = 'kinic.search.saved'
@@ -35,6 +35,7 @@ const SearchPage = () => {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ParsedResult[]>([])
   const [status, setStatus] = useState<string | null>(null)
+  const [errorMessages, setErrorMessages] = useState<{ canisterId: string; message: string }[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [selectedTag, setSelectedTag] = useState('all')
   const [sortMode, setSortMode] = useState<SortMode>('score_desc')
@@ -44,7 +45,8 @@ const SearchPage = () => {
   const [targetMemoryIds, setTargetMemoryIds] = useState<string[]>([])
   const [targetStatus, setTargetStatus] = useState<string | null>(null)
 
-  const canSearch = Boolean(identityState.isAuthenticated && targetMemoryIds.length && query.trim())
+  const hasTargetInput = targetInputs.some((value) => Boolean(normalizeMemoryId(value)))
+  const canSearch = Boolean(hasTargetInput && query.trim())
   const queryTokens = useMemo(() => {
     return query
       .trim()
@@ -109,18 +111,31 @@ const SearchPage = () => {
   }
 
   const handleSearch = async () => {
-    if (!identityState.identity || !targetMemoryIds.length) return
+    if (!identityState.identity) return
+
+    const { valid, invalidCount } = validateTargets(targetInputs)
+    if (invalidCount > 0) {
+      setTargetStatus('Invalid canister id.')
+    } else {
+      setTargetStatus(null)
+    }
+    if (valid.length === 0) {
+      setStatus('Add at least one canister id.')
+      return
+    }
+    const targetIds = valid.slice(0, 10)
+    syncTargets(targetIds)
 
     setIsSearching(true)
     setStatus(null)
-    setTargetStatus(null)
     setResults([])
+    setErrorMessages([])
 
     try {
       const trimmedQuery = query.trim()
       const embedding = await fetchEmbedding(trimmedQuery)
       const settled = await Promise.allSettled(
-        targetMemoryIds.map(async (memoryId) => {
+        targetIds.map(async (memoryId) => {
           const actor = await createMemoryActor(identityState.identity, memoryId)
           const rawResults = await actor.search(embedding)
           return { memoryId, rawResults }
@@ -152,6 +167,13 @@ const SearchPage = () => {
         setStatus('No results found.')
       }
       if (errors.length) {
+        const messages = errors.map((result, index) => {
+          const reason = result.reason
+          const raw = reason instanceof Error ? reason.message : String(reason)
+          const parsed = parseRejectMessage(raw) ?? raw
+          return { canisterId: targetIds[index] ?? 'unknown', message: parsed }
+        })
+        setErrorMessages(messages)
         setStatus(`Failed on ${errors.length} canister${errors.length === 1 ? '' : 's'}.`)
       }
 
@@ -293,7 +315,9 @@ const SearchPage = () => {
                           options={memoryOptions}
                           placeholder='Add canister id'
                           onChange={(values) => handleTargetSelect(index, values)}
+                          onInputValueChange={(nextValue) => handleTargetChange(index, nextValue)}
                           showSelections={false}
+                          keepInputValueOnSelect
                         />
                         <Button
                           variant='outline'
@@ -345,6 +369,17 @@ const SearchPage = () => {
               </Button>
               {status ? <span className='text-muted-foreground text-sm'>{status}</span> : null}
             </div>
+            {errorMessages.length ? (
+              <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-xs text-zinc-600'>
+                {errorMessages.map((item, index) => (
+                  <div key={`${item.canisterId}-${index}`} className='break-words'>
+                    <span className='font-mono text-zinc-700'>{item.canisterId}</span>
+                    <span className='text-zinc-500'> · </span>
+                    <span>{item.message}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <SearchHistory
               history={history}
               savedQueries={savedQueries}

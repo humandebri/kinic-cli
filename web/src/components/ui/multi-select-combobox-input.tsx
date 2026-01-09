@@ -15,6 +15,8 @@ export type MultiSelectComboboxInputProps = {
   onChange: (values: string[]) => void
   emptyMessage?: string
   showSelections?: boolean
+  onInputValueChange?: (value: string) => void
+  keepInputValueOnSelect?: boolean
   id?: string
 }
 
@@ -25,6 +27,8 @@ export const MultiSelectComboboxInput = ({
   onChange,
   emptyMessage = 'No matching options',
   showSelections = true,
+  onInputValueChange,
+  keepInputValueOnSelect = false,
   id
 }: MultiSelectComboboxInputProps) => {
   const [open, setOpen] = useState(false)
@@ -56,7 +60,11 @@ export const MultiSelectComboboxInput = ({
       const trimmed = inputValue.trim()
       if (trimmed.length > 0) {
         toggleValue(trimmed)
-        setInputValue('')
+        if (keepInputValueOnSelect) {
+          setInputValue(trimmed)
+        } else {
+          setInputValue('')
+        }
       }
       setOpen(false)
     }
@@ -68,6 +76,9 @@ export const MultiSelectComboboxInput = ({
 
   const handleSelect = (option: string) => {
     toggleValue(option)
+    if (keepInputValueOnSelect) {
+      setInputValue(option)
+    }
     setOpen(true)
   }
 
@@ -94,7 +105,9 @@ export const MultiSelectComboboxInput = ({
           placeholder={placeholder}
           value={inputValue}
           onChange={(event) => {
-            setInputValue(event.target.value)
+            const nextValue = event.target.value
+            setInputValue(nextValue)
+            onInputValueChange?.(nextValue)
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}

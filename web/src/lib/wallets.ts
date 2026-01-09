@@ -1,6 +1,6 @@
 // Where: Wallet connection helpers for Plug and OISY.
 // What: Connects wallets and exposes minimal account details.
-// Why: Centralizes wallet wiring for the Add Memory flow.
+// Why: Centralizes wallet wiring for the Mint Memory flow.
 'use client'
 
 import { HttpAgent } from '@dfinity/agent'

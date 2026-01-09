@@ -15,6 +15,13 @@ type CanisterStatusState = {
   error: string | null
 }
 
+const formatStatusError = (message: string) => {
+  if (message.includes('canister_not_found')) {
+    return 'Cycles balance requires controller access. If you are not a controller, IC returns canister_not_found.'
+  }
+  return message
+}
+
 export const useCanisterStatus = (identity: Identity | null, canisterId: string) => {
   const [state, setState] = useState<CanisterStatusState>({
     isLoading: false,
@@ -54,7 +61,8 @@ export const useCanisterStatus = (identity: Identity | null, canisterId: string)
       } catch (error) {
         if (!isMounted) return
 
-        const message = error instanceof Error ? error.message : 'Failed to load cycles'
+        const rawMessage = error instanceof Error ? error.message : 'Failed to load cycles'
+        const message = formatStatusError(rawMessage)
         setState({
           isLoading: false,
           cycles: null,

@@ -30,6 +30,13 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import {
   Sidebar,
@@ -63,6 +70,7 @@ type AppShellProps = {
 }
 
 const KINIC_DECIMALS = 100_000_000n
+const CUSTOM_CANISTERS_KEY = 'kinic.custom-canisters'
 
 const shortenPrincipal = (principalText: string | null): string => {
   if (!principalText) return 'Not connected'
@@ -113,15 +121,50 @@ const AppShell = ({
   const balance = useBalance()
   const memories = useMemories(identityState.identity, identityState.isReady)
   const { selectedMemoryId, setSelectedMemoryId } = useSelectedMemory()
+  const [customCanisters, setCustomCanisters] = useState<string[]>([])
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [toAddress, setToAddress] = useState('')
   const [amount, setAmount] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState<string | null>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(CUSTOM_CANISTERS_KEY)
+    if (!stored) return
+    try {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        setCustomCanisters(parsed.filter((item): item is string => typeof item === 'string'))
+      }
+    } catch {
+      // Ignore invalid stored data.
+    }
+  }, [])
+
+  const ownedCanisters = useMemo(() => {
+    return new Set(
+      memories.memories
+        .map((memory) => memory.principalText)
+        .filter((value): value is string => Boolean(value))
+    )
+  }, [memories.memories])
+
+  const memoryOptions = useMemo(() => {
+    const merged = new Set<string>()
+    for (const item of customCanisters) merged.add(item)
+    if (selectedMemoryId) merged.add(selectedMemoryId)
+    for (const memory of memories.memories) {
+      if (memory.principalText) merged.add(memory.principalText)
+    }
+    return Array.from(merged).map((id) => {
+      const isOwner = identityState.isAuthenticated && ownedCanisters.has(id)
+      return {
+        id,
+        label: isOwner ? id : `${id} (Not authorized)`
+      }
+    })
+  }, [customCanisters, selectedMemoryId, memories.memories, ownedCanisters, identityState.isAuthenticated])
   const [sendLoading, setSendLoading] = useState(false)
-  const memoryOptions = memories.memories
-    .map((memory) => memory.principalText)
-    .filter((id): id is string => Boolean(id))
   const memoryCount = identityState.isAuthenticated ? String(memoryOptions.length) : '0'
   const isSendDisabled = sendLoading || !identityState.isAuthenticated
   const sendAmountDisplay = useMemo(() => {
@@ -320,22 +363,22 @@ const AppShell = ({
               <div className='flex items-center gap-1.5'>
                 {identityState.isAuthenticated ? (
                   <div className='flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 text-xs text-zinc-600 shadow-sm backdrop-blur'>
-                    <span className='uppercase tracking-[0.2em] text-[10px] text-zinc-500'>Memory</span>
-                    <select
-                      className='h-7 max-w-[12rem] bg-transparent text-sm text-zinc-700 outline-none'
+                    <Select
                       value={selectedMemoryId ?? ''}
-                      onChange={(event) =>
-                        setSelectedMemoryId(event.target.value ? event.target.value : null)
-                      }
+                      onValueChange={(value) => setSelectedMemoryId(value || null)}
                       disabled={!memoryOptions.length}
                     >
-                      <option value=''>{memories.isLoading ? 'Loading…' : 'Select'}</option>
-                      {memoryOptions.map((id) => (
-                        <option key={id} value={id}>
-                          {id}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className='h-7 w-30 border-none bg-transparent px-0 shadow-none focus:ring-0'>
+                        <SelectValue placeholder={memories.isLoading ? 'Loading…' : 'Select'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {memoryOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 ) : null}
                 {identityState.isAuthenticated ? (
