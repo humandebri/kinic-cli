@@ -77,7 +77,7 @@ const ProfileDropdown = ({
         <DropdownMenuLabel className='flex items-center gap-4 px-4 py-2.5 font-normal'>
           <div className='relative'>
             <Avatar className='size-10'>
-              <AvatarImage src='https://cdn.shadcnstudio.com/ss-assets/avatar/avatar-1.png' alt='John Doe' />
+              <AvatarImage src='/kinic-favicon.png' alt='Kinic avatar' />
               <AvatarFallback>JD</AvatarFallback>
             </Avatar>
             <span className='ring-card absolute right-0 bottom-0 block size-2 rounded-full bg-green-600 ring-2' />

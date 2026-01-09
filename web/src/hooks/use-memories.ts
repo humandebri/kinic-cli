@@ -9,7 +9,14 @@ import type { Principal } from '@dfinity/principal'
 
 import { createLauncherActor, type LauncherState } from '@/lib/launcher'
 
-export type MemoryState = 'Empty' | 'Pending' | 'Creation' | 'Installation' | 'SettingUp' | 'Running'
+export type MemoryState =
+  | 'Empty'
+  | 'Pending'
+  | 'Creation'
+  | 'Installation'
+  | 'SettingUp'
+  | 'Running'
+  | 'Custom'
 
 export type MemoryInstance = {
   state: MemoryState

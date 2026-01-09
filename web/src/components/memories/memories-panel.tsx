@@ -5,6 +5,7 @@
 
 import { RefreshCw } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,13 +18,16 @@ import type { IdentityState } from '@/hooks/use-identity'
 import { type MemoryInstance, type MemoryState, useMemories } from '@/hooks/use-memories'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 
+const CUSTOM_CANISTERS_KEY = 'kinic.custom-canisters'
+
 const statusTone: Record<MemoryState, string> = {
   Running: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   SettingUp: 'border-amber-200 bg-amber-50 text-amber-700',
   Installation: 'border-amber-200 bg-amber-50 text-amber-700',
   Creation: 'border-amber-200 bg-amber-50 text-amber-700',
   Pending: 'border-amber-200 bg-amber-50 text-amber-700',
-  Empty: 'border-rose-200 bg-rose-50 text-rose-700'
+  Empty: 'border-rose-200 bg-rose-50 text-rose-700',
+  Custom: 'border-slate-200 bg-slate-50 text-slate-700'
 }
 
 const renderSkeletonRows = () => {
@@ -45,7 +49,8 @@ const renderSkeletonRows = () => {
 const renderMemoryRow = (
   memory: MemoryInstance,
   index: number,
-  onSelect: (id: string) => void
+  onSelect: (id: string) => void,
+  isAuthorized: boolean
 ) => {
   const detailText = memory.detail ?? '--'
   const principalText = memory.principalText ?? '--'
@@ -54,19 +59,28 @@ const renderMemoryRow = (
     <TableRow key={`${memory.state}-${principalText}-${index}`}>
       <TableCell className='font-medium'>
         {principalText !== '--' ? (
-          <Link
-            href={`/memories/${principalText}`}
-            className='underline decoration-dotted underline-offset-4'
-            onClick={() => onSelect(principalText)}
-          >
-            {principalText}
-          </Link>
+          <div className='flex flex-col gap-1'>
+            <Link
+              href={`/memories/${principalText}`}
+              className='font-mono text-sm text-blue-600 hover:text-blue-700'
+              onClick={() => onSelect(principalText)}
+            >
+              {principalText}
+            </Link>
+          </div>
         ) : (
           principalText
         )}
       </TableCell>
       <TableCell>
-        <Badge className={`rounded-full border ${statusTone[memory.state]}`}>{memory.state}</Badge>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Badge className={`rounded-full border ${statusTone[memory.state]}`}>{memory.state}</Badge>
+          {!isAuthorized ? (
+            <Badge className='rounded-full border border-amber-200 bg-amber-50 text-amber-700'>
+              NOT AUTHORIZED
+            </Badge>
+          ) : null}
+        </div>
       </TableCell>
       <TableCell className='text-muted-foreground'>{detailText}</TableCell>
     </TableRow>
@@ -79,10 +93,35 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
     identityState.isReady
   )
   const { setSelectedMemoryId } = useSelectedMemory()
+  const [customCanisters, setCustomCanisters] = useState<string[]>([])
+
+  useEffect(() => {
+    const stored = localStorage.getItem(CUSTOM_CANISTERS_KEY)
+    if (!stored) return
+    try {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        setCustomCanisters(parsed.filter((item): item is string => typeof item === 'string'))
+      }
+    } catch {
+      // Ignore invalid stored data.
+    }
+  }, [])
 
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : 'Not updated yet'
   const showAuthNotice = identityState.isReady && !identityState.isAuthenticated
-  const showEmpty = !isLoading && !error && memories.length === 0 && !showAuthNotice
+  const showEmpty = !isLoading && !error && memories.length === 0 && customCanisters.length === 0 && !showAuthNotice
+  const ownedSet = new Set(
+    memories
+      .map((memory) => memory.principalText)
+      .filter((value): value is string => Boolean(value))
+  )
+  const mergedMemories: MemoryInstance[] = [
+    ...memories,
+    ...customCanisters
+      .filter((id) => !ownedSet.has(id))
+      .map((id) => ({ state: 'Custom' as MemoryState, principalText: id, detail: 'Saved manually' }))
+  ]
 
   return (
     <div className='flex flex-col gap-6'>
@@ -90,7 +129,6 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
         <CardHeader className='flex flex-col gap-4'>
           <div className='flex flex-wrap items-center justify-between gap-4'>
             <div className='flex flex-col gap-1'>
-              <span className='text-muted-foreground text-xs uppercase tracking-[0.2em]'>Memories</span>
               <CardTitle className='text-2xl'>Memory instances</CardTitle>
               <CardDescription>Fetch Memory IDs from Launcher list_instance.</CardDescription>
             </div>
@@ -121,13 +159,6 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
             </TableHeader>
             <TableBody>
               {isLoading && memories.length === 0 ? renderSkeletonRows() : null}
-              {showAuthNotice ? (
-                <TableRow>
-                  <TableCell colSpan={3} className='text-muted-foreground'>
-                    Connect identity to load memories.
-                  </TableCell>
-                </TableRow>
-              ) : null}
               {error ? (
                 <TableRow>
                   <TableCell colSpan={3} className='text-rose-500'>
@@ -142,8 +173,10 @@ const MemoriesPanel = ({ identityState }: { identityState: IdentityState }) => {
                   </TableCell>
                 </TableRow>
               ) : null}
-              {!isLoading && !error && memories.length
-                ? memories.map((memory, index) => renderMemoryRow(memory, index, setSelectedMemoryId))
+              {!isLoading && !error && mergedMemories.length
+                ? mergedMemories.map((memory, index) =>
+                    renderMemoryRow(memory, index, setSelectedMemoryId, ownedSet.has(memory.principalText ?? ''))
+                  )
                 : null}
             </TableBody>
           </Table>
