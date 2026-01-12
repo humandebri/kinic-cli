@@ -13,6 +13,10 @@ type SourceSnippet = {
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1/models/gemini-3-flash-preview:generateContent'
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 const buildPrompt = (question: string, sources: SourceSnippet[]) => {
   const citations = sources
     .map((source, index) => {
@@ -71,12 +75,14 @@ export const POST = async (request: Request) => {
     }
 
     const body: unknown = await request.json()
-    if (!body || typeof body !== 'object') {
+    if (!isRecord(body)) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const question = typeof body.question === 'string' ? body.question.trim() : ''
-    const sources = Array.isArray(body.sources) ? body.sources : []
+    const rawQuestion = body.question
+    const question = typeof rawQuestion === 'string' ? rawQuestion.trim() : ''
+    const rawSources = body.sources
+    const sources = Array.isArray(rawSources) ? rawSources : []
 
     if (!question) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 })

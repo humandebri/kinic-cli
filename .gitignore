@@ -34,4 +34,3 @@ pylate-index/
 
 web/.next/
 web/node_modules/
-web/.env.local
