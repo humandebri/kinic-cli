@@ -32,6 +32,10 @@ type ChatMessage = {
   sources?: ParsedResult[]
 }
 
+type MessagePart =
+  | { kind: 'text'; value: string }
+  | { kind: 'citation'; value: string; index: number }
+
 const normalizeMemoryId = (value: string) => value.trim()
 
 const SearchPage = () => {
@@ -348,6 +352,7 @@ const SearchPage = () => {
       content: trimmed
     }
     setChatMessages((prev) => [...prev, userMessage])
+    setChatInput('')
 
     try {
       const searchResults = await runSearch(trimmed)
@@ -359,7 +364,6 @@ const SearchPage = () => {
         sources: searchResults.slice(0, 4)
       }
       setChatMessages((prev) => [...prev, assistantMessage])
-      setChatInput('')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to answer'
       const assistantMessage: ChatMessage = {
@@ -372,6 +376,68 @@ const SearchPage = () => {
       setIsAnswering(false)
     }
   }, [chatInput, hasTargetInput, isAnswering, requestAnswer, runSearch])
+
+  const parseMessageParts = useCallback((content: string): MessagePart[] => {
+    const parts: MessagePart[] = []
+    const pattern = /\[(\d+)\]/g
+    let lastIndex = 0
+
+    for (const match of content.matchAll(pattern)) {
+      if (match.index === undefined) continue
+      const start = match.index
+      const end = start + match[0].length
+      if (start > lastIndex) {
+        parts.push({ kind: 'text', value: content.slice(lastIndex, start) })
+      }
+      const indexValue = Number(match[1])
+      if (!Number.isNaN(indexValue)) {
+        parts.push({ kind: 'citation', value: match[0], index: indexValue })
+      } else {
+        parts.push({ kind: 'text', value: match[0] })
+      }
+      lastIndex = end
+    }
+
+    if (lastIndex < content.length) {
+      parts.push({ kind: 'text', value: content.slice(lastIndex) })
+    }
+
+    return parts
+  }, [])
+
+  const renderMessageContent = useCallback(
+    (message: ChatMessage) => {
+      if (message.role !== 'assistant') {
+        return <div className='whitespace-pre-line'>{message.content}</div>
+      }
+
+      const sourceCount = message.sources ? message.sources.length : 0
+      const parts = parseMessageParts(message.content)
+      return (
+        <div className='whitespace-pre-line'>
+          {parts.map((part, index) => {
+            if (part.kind === 'text') {
+              return <span key={`${message.id}-text-${index}`}>{part.value}</span>
+            }
+            const targetId = `${message.id}-source-${part.index}`
+            if (part.index >= 1 && part.index <= sourceCount) {
+              return (
+                <a
+                  key={`${message.id}-cite-${index}`}
+                  href={`#${targetId}`}
+                  className='font-semibold text-zinc-900 underline decoration-dotted underline-offset-2'
+                >
+                  {part.value}
+                </a>
+              )
+            }
+            return <span key={`${message.id}-cite-${index}`}>{part.value}</span>
+          })}
+        </div>
+      )
+    },
+    [parseMessageParts]
+  )
 
   return (
     <AppShell pageTitle='Search' identityState={identityState}>
@@ -512,16 +578,23 @@ const SearchPage = () => {
                         : 'border border-zinc-200/70 bg-white/80 text-zinc-900'
                     }`}
                   >
-                    <div className='whitespace-pre-line'>{message.content}</div>
+                    {renderMessageContent(message)}
                     {message.role === 'assistant' && message.sources && message.sources.length > 0 ? (
                       <div className='mt-3 border-t border-zinc-200/70 pt-3 text-xs text-zinc-600'>
                         <div className='text-[10px] font-semibold uppercase tracking-wide text-zinc-500'>
-                          Citations
+                          Sources
                         </div>
                         <div className='mt-2 flex flex-col gap-2'>
                           {message.sources.map((source, index) => (
-                            <div key={`${source.memoryId}-${index}`} className='rounded-xl bg-zinc-50 px-3 py-2'>
-                              <div className='font-mono text-[10px] text-zinc-500'>{source.memoryId}</div>
+                            <div
+                              key={`${source.memoryId}-${index}`}
+                              id={`${message.id}-source-${index + 1}`}
+                              className='rounded-xl bg-zinc-50 px-3 py-2'
+                            >
+                              <div className='flex items-center gap-2 text-[10px] text-zinc-500'>
+                                <span className='font-semibold'>[{index + 1}]</span>
+                                <span className='font-mono'>{source.memoryId}</span>
+                              </div>
                               <div className='text-xs text-zinc-700'>{source.sentence}</div>
                             </div>
                           ))}

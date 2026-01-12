@@ -18,10 +18,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 }
 
 const buildPrompt = (question: string, sources: SourceSnippet[]) => {
-  const citations = sources
+  const numberedSources = sources
     .map((source, index) => {
       const parts = [
-        `[#${index + 1}]`,
+        `[${index + 1}]`,
         `memoryId=${source.memoryId}`,
         source.tag ? `tag=${source.tag}` : null,
         `sentence=${source.sentence}`
@@ -34,18 +34,16 @@ const buildPrompt = (question: string, sources: SourceSnippet[]) => {
     'You are a research assistant.',
     'Answer the question using only the provided sources.',
     'Always include citations like [1] in the answer.',
+    'Do not include a separate "Citations:" section.',
     'If the sources are insufficient, say: "I do not have enough sources to answer this question."',
     '',
     `Question: ${question}`,
     '',
     'Sources:',
-    citations,
+    numberedSources,
     '',
     'Return format:',
-    'Answer: <short paragraph with citations like [1]>',
-    'Citations:',
-    '[1] <short citation sentence>',
-    '[2] <short citation sentence>'
+    '<short paragraph with citations like [1]>'
   ].join('\n')
 }
 
@@ -65,6 +63,39 @@ const extractText = (payload: unknown) => {
     return typeof text === 'string' ? text : ''
   })
   return texts.join('')
+}
+
+const stripCitationsSection = (answer: string) => {
+  const lines = answer.split('\n')
+  const output: string[] = []
+  let dropping = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!dropping && /^citations:?\s*$/i.test(trimmed)) {
+      dropping = true
+      continue
+    }
+    if (dropping) {
+      if (/^\[\d+\]/.test(trimmed) || trimmed.length === 0) {
+        continue
+      }
+      dropping = false
+    }
+    output.push(line)
+  }
+
+  return output.join('\n').trim()
+}
+
+const normalizeCitationNumbers = (answer: string, maxIndex: number) => {
+  if (maxIndex <= 0) return answer.replace(/\[\d+\]/g, '').trim()
+  return answer.replace(/\[(\d+)\]/g, (match, raw) => {
+    const index = Number(raw)
+    if (Number.isNaN(index)) return match
+    if (index < 1 || index > maxIndex) return ''
+    return `[${index}]`
+  }).replace(/\s{2,}/g, ' ').trim()
 }
 
 export const POST = async (request: Request) => {
@@ -131,8 +162,10 @@ export const POST = async (request: Request) => {
     }
 
     const payload: unknown = await response.json()
-    const answer = extractText(payload)
-    return NextResponse.json({ answer })
+    const rawAnswer = extractText(payload)
+    const stripped = stripCitationsSection(rawAnswer)
+    const normalized = normalizeCitationNumbers(stripped, normalizedSources.length)
+    return NextResponse.json({ answer: normalized })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gemini request failed'
     return NextResponse.json({ error: message }, { status: 500 })
