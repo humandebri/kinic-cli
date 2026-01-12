@@ -4,6 +4,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { XIcon } from 'lucide-react'
 import { Principal } from '@dfinity/principal'
 
 import AppShell from '@/components/layout/app-shell'
@@ -20,11 +21,16 @@ import { createMemoryActor } from '@/lib/memory'
 import { fetchEmbedding } from '@/lib/embedding'
 import { extractRelatedTerms, parseRejectMessage, parseResultText, type ParsedResult } from '@/lib/search-utils'
 
-const HISTORY_KEY = 'kinic.search.history'
 const SAVED_KEY = 'kinic.search.saved'
 const TARGET_KEY = 'kinic.search.targets'
 
 type SortMode = 'score_desc' | 'score_asc' | 'tag'
+type ChatMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: ParsedResult[]
+}
 
 const normalizeMemoryId = (value: string) => value.trim()
 
@@ -39,11 +45,13 @@ const SearchPage = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [selectedTag, setSelectedTag] = useState('all')
   const [sortMode, setSortMode] = useState<SortMode>('score_desc')
-  const [history, setHistory] = useState<string[]>([])
   const [savedQueries, setSavedQueries] = useState<string[]>([])
   const [targetInputs, setTargetInputs] = useState<string[]>([''])
   const [targetMemoryIds, setTargetMemoryIds] = useState<string[]>([])
   const [targetStatus, setTargetStatus] = useState<string | null>(null)
+  const [chatInput, setChatInput] = useState('')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [isAnswering, setIsAnswering] = useState(false)
 
   const hasTargetInput = targetInputs.some((value) => Boolean(normalizeMemoryId(value)))
   const canSearch = Boolean(hasTargetInput && query.trim())
@@ -110,11 +118,47 @@ const SearchPage = () => {
     syncTargets(nextInputs.length ? nextInputs : [''])
   }
 
-  const handleSearch = async () => {
+  const extractAnswer = (payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return null
+    const answer = Reflect.get(payload, 'answer')
+    return typeof answer === 'string' ? answer : null
+  }
+
+  const requestAnswer = useCallback(async (question: string, sources: ParsedResult[]) => {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        question,
+        sources: sources.map((source) => ({
+          memoryId: source.memoryId,
+          sentence: source.sentence,
+          tag: source.tag ?? null,
+          score: source.score
+        }))
+      })
+    })
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(message || 'Failed to generate answer')
+    }
+
+    const payload: unknown = await response.json()
+    const answer = extractAnswer(payload)
+    if (!answer) {
+      throw new Error('Invalid response from answer service')
+    }
+    return answer
+  }, [])
+
+  const runSearch = useCallback(async (nextQuery?: string) => {
     const identity = identityState.identity
     if (!identity) {
       setStatus('Connect identity to search.')
-      return
+      return []
     }
 
     const { valid, invalidCount } = validateTargets(targetInputs)
@@ -125,7 +169,7 @@ const SearchPage = () => {
     }
     if (valid.length === 0) {
       setStatus('Add at least one canister id.')
-      return
+      return []
     }
     const targetIds = valid.slice(0, 10)
     syncTargets(targetIds)
@@ -136,7 +180,7 @@ const SearchPage = () => {
     setErrorMessages([])
 
     try {
-      const trimmedQuery = query.trim()
+      const trimmedQuery = (nextQuery ?? query).trim()
       const embedding = await fetchEmbedding(trimmedQuery)
       const settled = await Promise.allSettled(
         targetIds.map(async (memoryId) => {
@@ -181,33 +225,23 @@ const SearchPage = () => {
         setStatus(`Failed on ${errors.length} canister${errors.length === 1 ? '' : 's'}.`)
       }
 
-      if (trimmedQuery) {
-        const nextHistory = [trimmedQuery, ...history.filter((item) => item !== trimmedQuery)].slice(0, 8)
-        setHistory(nextHistory)
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHistory))
-      }
+      return sorted
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Search failed'
       setStatus(message)
+      return []
     } finally {
       setIsSearching(false)
     }
+  }, [identityState.identity, query, syncTargets, targetInputs, validateTargets])
+
+  const handleSearch = async () => {
+    await runSearch()
   }
 
   useEffect(() => {
-    const storedHistory = localStorage.getItem(HISTORY_KEY)
     const storedSaved = localStorage.getItem(SAVED_KEY)
     const storedTargets = localStorage.getItem(TARGET_KEY)
-    if (storedHistory) {
-      try {
-        const parsed = JSON.parse(storedHistory)
-        if (Array.isArray(parsed)) {
-          setHistory(parsed.filter((item): item is string => typeof item === 'string'))
-        }
-      } catch {
-        // Ignore parse errors.
-      }
-    }
     if (storedSaved) {
       try {
         const parsed = JSON.parse(storedSaved)
@@ -299,122 +333,232 @@ const SearchPage = () => {
     return Array.from(new Set(merged))
   }, [memories, selectedMemoryId, targetMemoryIds])
 
+  const handleChatSubmit = useCallback(async () => {
+    const trimmed = chatInput.trim()
+    if (!trimmed || isAnswering) return
+    if (!hasTargetInput) {
+      setStatus('Add at least one canister id.')
+      return
+    }
+    setIsAnswering(true)
+    setQuery(trimmed)
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-user`,
+      role: 'user',
+      content: trimmed
+    }
+    setChatMessages((prev) => [...prev, userMessage])
+
+    try {
+      const searchResults = await runSearch(trimmed)
+      const answer = await requestAnswer(trimmed, searchResults)
+      const assistantMessage: ChatMessage = {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: answer,
+        sources: searchResults.slice(0, 4)
+      }
+      setChatMessages((prev) => [...prev, assistantMessage])
+      setChatInput('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to answer'
+      const assistantMessage: ChatMessage = {
+        id: `${Date.now()}-assistant`,
+        role: 'assistant',
+        content: message
+      }
+      setChatMessages((prev) => [...prev, assistantMessage])
+    } finally {
+      setIsAnswering(false)
+    }
+  }, [chatInput, hasTargetInput, isAnswering, requestAnswer, runSearch])
+
   return (
     <AppShell pageTitle='Search' identityState={identityState}>
-      <div className='grid gap-6'>
-        <Card>
-          <CardHeader className='flex flex-col items-start gap-2'>
-            <span className='text-lg font-semibold'>Search</span>
-            <span className='text-muted-foreground text-sm'>
-              Generate an embedding for the query and search the selected memory.
-            </span>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm text-zinc-600'>Targets</label>
-              <div className='text-sm'>
-                <span className='text-xs text-zinc-500'>Add canister IDs to search.</span>
-                <div className='mt-3 flex flex-col gap-3'>
-                  <div className='flex flex-col gap-2'>
-                    {targetInputs.map((value, index) => (
-                      <div key={`target-${index}`} className='flex items-center gap-2'>
-                        <MultiSelectComboboxInput
-                          values={value ? [value] : []}
-                          options={memoryOptions}
-                          placeholder='Add canister id'
-                          onChange={(values) => handleTargetSelect(index, values)}
-                          onInputValueChange={(nextValue) => handleTargetChange(index, nextValue)}
-                          showSelections={false}
-                          keepInputValueOnSelect
-                        />
+      <div className='grid items-stretch gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]'>
+        <div className='grid h-full gap-6'>
+          <Card>
+            <CardHeader className='flex flex-col items-start gap-2'>
+              <span className='text-lg font-semibold'>Sources & search</span>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='flex flex-col gap-2'>
+                <label className='text-sm text-zinc-600'>Targets</label>
+                <div className='text-sm'>
+                  <span className='text-xs text-zinc-500'>Add canister IDs to search.</span>
+                  <div className='mt-3 flex flex-col gap-3'>
+                    <div className='flex flex-col gap-2'>
+                      {targetInputs.map((value, index) => (
+                        <div key={`target-${index}`} className='flex items-center gap-2'>
+                          <MultiSelectComboboxInput
+                            values={value ? [value] : []}
+                            options={memoryOptions}
+                            placeholder='Add canister id'
+                            onChange={(values) => handleTargetSelect(index, values)}
+                            onInputValueChange={(nextValue) => handleTargetChange(index, nextValue)}
+                            showSelections={false}
+                            keepInputValueOnSelect
+                          />
                         <Button
                           variant='outline'
-                          size='sm'
-                          className='rounded-full'
+                          size='icon'
+                          className='h-9 w-9 rounded-full'
                           onClick={() => removeTargetInput(index)}
                           disabled={targetInputs.length === 1}
+                          aria-label='Remove target'
                         >
-                          Remove
+                          <XIcon className='h-4 w-4' />
                         </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <Button variant='outline' size='sm' className='rounded-full' onClick={addTargetInput}>
-                      + Add canister
-                    </Button>
-                    {targetStatus ? <span className='text-muted-foreground text-xs'>{targetStatus}</span> : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <Button variant='outline' size='sm' className='rounded-full' onClick={addTargetInput}>
+                        + Add canister
+                      </Button>
+                      {targetStatus ? <span className='text-muted-foreground text-xs'>{targetStatus}</span> : null}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm text-zinc-600'>Query</label>
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && canSearch) {
-                    event.preventDefault()
-                    handleSearch()
-                  }
-                }}
-                placeholder='Search query'
-              />
-            </div>
-            <div className='flex items-center gap-3'>
-              <Button className='rounded-full' onClick={handleSearch} disabled={!canSearch || isSearching}>
-                {isSearching ? 'Searching…' : 'Search'}
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                className='rounded-full'
-                onClick={handleSaveQuery}
-                disabled={!query.trim()}
-              >
-                Save query
-              </Button>
-              {status ? <span className='text-muted-foreground text-sm'>{status}</span> : null}
-            </div>
-            {errorMessages.length ? (
-              <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-xs text-zinc-600'>
-                {errorMessages.map((item, index) => (
-                  <div key={`${item.canisterId}-${index}`} className='break-words'>
-                    <span className='font-mono text-zinc-700'>{item.canisterId}</span>
-                    <span className='text-zinc-500'> · </span>
-                    <span>{item.message}</span>
-                  </div>
-                ))}
+              <div className='flex flex-col gap-2'>
+                <label className='text-sm text-zinc-600'>Search</label>
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && canSearch) {
+                      event.preventDefault()
+                      handleSearch()
+                    }
+                  }}
+                  placeholder='Search query'
+                />
               </div>
-            ) : null}
+              <div className='flex items-center gap-3'>
+                <Button className='rounded-full' onClick={handleSearch} disabled={!canSearch || isSearching}>
+                  {isSearching ? 'Searching…' : 'Search'}
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='rounded-full'
+                  onClick={handleSaveQuery}
+                  disabled={!query.trim()}
+                >
+                  Save query
+                </Button>
+                {status ? <span className='text-muted-foreground text-sm'>{status}</span> : null}
+              </div>
+              {errorMessages.length ? (
+                <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-xs text-zinc-600'>
+                  {errorMessages.map((item, index) => (
+                    <div key={`${item.canisterId}-${index}`} className='break-words'>
+                      <span className='font-mono text-zinc-700'>{item.canisterId}</span>
+                      <span className='text-zinc-500'> · </span>
+                      <span>{item.message}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             <SearchHistory
-              history={history}
+              history={[]}
               savedQueries={savedQueries}
               onSelect={(value) => setQuery(value)}
             />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
+          <Card>
+            <CardHeader className='flex flex-col items-start gap-2'>
+              <span className='text-lg font-semibold'>Results</span>
+              <span className='text-muted-foreground text-sm'>
+                Filter by tag, sort results, and review matched snippets.
+              </span>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <SearchResults
+                results={filteredResults}
+                tags={tags}
+                selectedTag={selectedTag}
+                sortMode={sortMode}
+                queryTokens={queryTokens}
+                relatedTerms={relatedTerms}
+                onTagChange={setSelectedTag}
+                onSortChange={setSortMode}
+                onQuerySelect={setQuery}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className='flex h-full flex-col'>
           <CardHeader className='flex flex-col items-start gap-2'>
-            <span className='text-lg font-semibold'>Results</span>
-            <span className='text-muted-foreground text-sm'>
-              Filter by tag, sort results, and review matched snippets.
-            </span>
+            <span className='text-lg font-semibold'>Ask</span>
           </CardHeader>
-          <CardContent className='space-y-3'>
-            <SearchResults
-              results={filteredResults}
-              tags={tags}
-              selectedTag={selectedTag}
-              sortMode={sortMode}
-              queryTokens={queryTokens}
-              relatedTerms={relatedTerms}
-              onTagChange={setSelectedTag}
-              onSortChange={setSortMode}
-              onQuerySelect={setQuery}
-            />
+          <CardContent className='flex min-h-0 flex-1 flex-col gap-4'>
+            <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-auto'>
+              {chatMessages.length === 0 ? (
+                <div className='rounded-2xl border border-dashed border-zinc-200/80 bg-white/70 px-4 py-6 text-sm text-zinc-500'>
+                  Start with a question to generate a draft answer from your sources.
+                </div>
+              ) : (
+                chatMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`rounded-2xl px-4 py-3 text-sm ${
+                      message.role === 'user'
+                        ? 'bg-zinc-900 text-white'
+                        : 'border border-zinc-200/70 bg-white/80 text-zinc-900'
+                    }`}
+                  >
+                    <div className='whitespace-pre-line'>{message.content}</div>
+                    {message.role === 'assistant' && message.sources && message.sources.length > 0 ? (
+                      <div className='mt-3 border-t border-zinc-200/70 pt-3 text-xs text-zinc-600'>
+                        <div className='text-[10px] font-semibold uppercase tracking-wide text-zinc-500'>
+                          Citations
+                        </div>
+                        <div className='mt-2 flex flex-col gap-2'>
+                          {message.sources.map((source, index) => (
+                            <div key={`${source.memoryId}-${index}`} className='rounded-xl bg-zinc-50 px-3 py-2'>
+                              <div className='font-mono text-[10px] text-zinc-500'>{source.memoryId}</div>
+                              <div className='text-xs text-zinc-700'>{source.sentence}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className='flex w-full flex-col gap-2'>
+              <label className='text-sm text-zinc-600'>Question</label>
+              <textarea
+                className='min-h-[96px] w-full resize-none rounded-2xl border border-zinc-200/70 bg-white/70 p-3 text-sm text-zinc-900'
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    handleChatSubmit()
+                  }
+                }}
+                placeholder='Ask about your sources'
+              />
+              <div className='flex w-full items-center gap-3'>
+                <Button
+                  className='rounded-full'
+                  onClick={handleChatSubmit}
+                  disabled={!chatInput.trim() || isAnswering || isSearching || !hasTargetInput}
+                >
+                  {isAnswering ? 'Answering…' : 'Send'}
+                </Button>
+                {!hasTargetInput ? (
+                  <span className='text-xs text-zinc-500'>Add at least one target first.</span>
+                ) : null}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -438,7 +438,7 @@ const AppShell = ({
               </div>
             </div>
           </header>
-          <main className='mx-auto size-full max-w-7xl flex-1 px-3 py-4 sm:px-4'>{children}</main>
+          <main className='mx-auto w-full max-w-7xl flex-1 px-3 py-4 sm:px-4'>{children}</main>
           {showFooter && mounted ? (
             <footer>
               <div className='text-muted-foreground mx-auto flex size-full max-w-7xl items-center justify-between gap-3 px-4 py-3 max-sm:flex-col sm:gap-6 sm:px-6'>
