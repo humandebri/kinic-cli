@@ -3,7 +3,7 @@
 // Why: Provides a full insert workflow in the web UI.
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ShieldAlertIcon } from 'lucide-react'
 
 import AppShell from '@/components/layout/app-shell'
@@ -42,6 +42,7 @@ const InsertPage = () => {
   const [tag, setTag] = useState('')
   const [isReading, setIsReading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCompleted, setIsCompleted] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ total: number; done: number } | null>(null)
 
@@ -49,6 +50,10 @@ const InsertPage = () => {
     if (!selectedMemoryId) return false
     return memories.memories.some((memory) => memory.principalText === selectedMemoryId)
   }, [memories.memories, selectedMemoryId])
+
+  useEffect(() => {
+    setIsCompleted(false)
+  }, [selectedMemoryId])
 
   const canSubmit = Boolean(
     identityState.isAuthenticated && selectedMemoryId && isOwner && markdown.trim() && tag.trim()
@@ -66,6 +71,7 @@ const InsertPage = () => {
     setStatus(null)
     setIsReading(true)
     setProgress(null)
+    setIsCompleted(false)
 
     try {
       // Parse locally to satisfy the "client-side processing" requirement.
@@ -116,6 +122,7 @@ const InsertPage = () => {
       }
 
       setStatus('Insert completed.')
+      setIsCompleted(true)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Insert failed'
       setStatus(message)
@@ -174,7 +181,10 @@ const InsertPage = () => {
               <label className='text-sm text-zinc-600'>Tag</label>
               <Input
                 value={tag}
-                onChange={(event) => setTag(event.target.value)}
+                onChange={(event) => {
+                  setTag(event.target.value)
+                  setIsCompleted(false)
+                }}
                 placeholder='e.g. roadmap_2025'
               />
             </div>
@@ -190,7 +200,7 @@ const InsertPage = () => {
               <Button
                 className='rounded-full'
                 onClick={handleInsert}
-                disabled={!canSubmit || isSubmitting || isReading}
+                disabled={!canSubmit || isSubmitting || isReading || isCompleted}
               >
                 {isSubmitting ? 'Inserting…' : 'Insert'}
               </Button>

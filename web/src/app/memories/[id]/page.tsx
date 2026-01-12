@@ -15,14 +15,11 @@ import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
 import {
   fetchInstanceVersions,
-  fetchMarketedStatus,
   fetchRemainingCycles,
   fetchSharedMemories,
-  lockInstanceForDownloading,
   registerSharedMemory,
   updateMemoryInstance,
-  updateMemoryInstanceWithOption,
-  type MarketedInstanceStatus
+  updateMemoryInstanceWithOption
 } from '@/lib/launcher'
 
 type RoleOption = 'admin' | 'writer' | 'reader'
@@ -36,7 +33,7 @@ const roleValueMap: Record<RoleOption, number> = {
 const MemoryDetailPage = () => {
   const identityState = useIdentityState()
   const { selectedMemoryId } = useSelectedMemory()
-  const memoryId = selectedMemoryId ?? ''
+  const memoryId = selectedMemoryId?.trim() ?? ''
   const [principalInput, setPrincipalInput] = useState('')
   const [role, setRole] = useState<RoleOption>('writer')
   const [addUserStatus, setAddUserStatus] = useState<string | null>(null)
@@ -49,10 +46,6 @@ const MemoryDetailPage = () => {
   const [isLoadingLauncherMeta, setIsLoadingLauncherMeta] = useState(false)
   const [instanceVersion, setInstanceVersion] = useState<string | null>(null)
   const [versionError, setVersionError] = useState<string | null>(null)
-  const [marketStatus, setMarketStatus] = useState<MarketedInstanceStatus | null>(null)
-  const [marketStatusError, setMarketStatusError] = useState<string | null>(null)
-  const [isLockingDownload, setIsLockingDownload] = useState(false)
-  const [lockStatus, setLockStatus] = useState<string | null>(null)
   const [sharedMemories, setSharedMemories] = useState<string[]>([])
   const [sharedError, setSharedError] = useState<string | null>(null)
   const [isRegisteringShared, setIsRegisteringShared] = useState(false)
@@ -64,22 +57,10 @@ const MemoryDetailPage = () => {
     return memoryId.length > 0 && sharedMemories.includes(memoryId)
   }, [memoryId, sharedMemories])
 
-  const formatMarketStatus = (status: MarketedInstanceStatus | null) => {
-    if (!status) return '--'
-    if ('None' in status) return 'None'
-    if ('Unlisting' in status) return 'Unlisting'
-    if ('Active' in status) {
-      const [price, score] = status.Active
-      return `Active (price ${price.toString()}, score ${score})`
-    }
-    return '--'
-  }
-
   const loadLauncherMeta = useCallback(async () => {
     if (!memoryId) return
     setIsLoadingLauncherMeta(true)
     setLauncherMetaStatus(null)
-    setMarketStatusError(null)
     setVersionError(null)
     setSharedError(null)
 
@@ -99,19 +80,13 @@ const MemoryDetailPage = () => {
       .then((value) => {
         const match = value.find((entry) => entry[0] === memoryId)
         setInstanceVersion(match ? match[1] : null)
+        if (!match && memoryId) {
+          setVersionError('Not found in launcher list.')
+        }
       })
       .catch(() => {
         setInstanceVersion(null)
         setVersionError('Failed to load version.')
-      })
-
-    fetchMarketedStatus(identityState.identity ?? undefined, memoryId)
-      .then((value) => {
-        setMarketStatus(value)
-      })
-      .catch(() => {
-        setMarketStatus(null)
-        setMarketStatusError('Failed to load market status.')
       })
 
     fetchSharedMemories(identityState.identity ?? undefined)
@@ -184,23 +159,6 @@ const MemoryDetailPage = () => {
       setUpdateStatus(message)
     } finally {
       setIsUpdatingWithOption(false)
-    }
-  }
-
-  const handleLockForDownload = async () => {
-    if (!identityState.identity || !memoryId) return
-
-    setIsLockingDownload(true)
-    setLockStatus(null)
-
-    try {
-      await lockInstanceForDownloading(identityState.identity, memoryId)
-      setLockStatus('Locked for downloading.')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to lock for downloading'
-      setLockStatus(message)
-    } finally {
-      setIsLockingDownload(false)
     }
   }
 
@@ -323,29 +281,6 @@ const MemoryDetailPage = () => {
             {updateStatus ? <span className='text-sm text-muted-foreground'>{updateStatus}</span> : null}
           </CardContent>
         </Card>
-        
-        <Card>
-          <CardHeader className='flex flex-col items-start gap-2'>
-            <span className='text-lg font-semibold'>Market</span>
-            <span className='text-muted-foreground text-sm'>Check listing and lock for download.</span>
-          </CardHeader>
-          <CardContent className='flex flex-col items-start gap-3'>
-            <div className='text-sm text-zinc-700'>Status: {formatMarketStatus(marketStatus)}</div>
-            {marketStatusError ? (
-              <span className='text-xs text-rose-500'>{marketStatusError}</span>
-            ) : null}
-            <Button
-              variant='outline'
-              className='rounded-full'
-              onClick={handleLockForDownload}
-              disabled={!canSubmit || isLockingDownload}
-            >
-              {isLockingDownload ? 'Locking...' : 'Lock for download'}
-            </Button>
-            {lockStatus ? <span className='text-sm text-muted-foreground'>{lockStatus}</span> : null}
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className='flex flex-col items-start gap-2'>
             <span className='text-lg font-semibold'>Shared memory</span>
