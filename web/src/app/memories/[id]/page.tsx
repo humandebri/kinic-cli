@@ -3,7 +3,7 @@
 // Why: Allows running add_new_user and update_instance from the UI.
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Principal } from '@dfinity/principal'
 
 import AppShell from '@/components/layout/app-shell'
@@ -13,8 +13,17 @@ import { Input } from '@/components/ui/input'
 import { useIdentityState } from '@/components/providers/identity-provider'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
-import { createLauncherActor } from '@/lib/launcher'
-import { useCanisterStatus } from '@/hooks/use-canister-status'
+import {
+  fetchInstanceVersions,
+  fetchMarketedStatus,
+  fetchRemainingCycles,
+  fetchSharedMemories,
+  lockInstanceForDownloading,
+  registerSharedMemory,
+  updateMemoryInstance,
+  updateMemoryInstanceWithOption,
+  type MarketedInstanceStatus
+} from '@/lib/launcher'
 
 type RoleOption = 'admin' | 'writer' | 'reader'
 
@@ -28,15 +37,97 @@ const MemoryDetailPage = () => {
   const identityState = useIdentityState()
   const { selectedMemoryId } = useSelectedMemory()
   const memoryId = selectedMemoryId ?? ''
-  const canisterStatus = useCanisterStatus(identityState.identity, memoryId)
   const [principalInput, setPrincipalInput] = useState('')
   const [role, setRole] = useState<RoleOption>('writer')
   const [addUserStatus, setAddUserStatus] = useState<string | null>(null)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
   const [isAddingUser, setIsAddingUser] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isUpdatingWithOption, setIsUpdatingWithOption] = useState(false)
+  const [launcherCycles, setLauncherCycles] = useState<bigint | null>(null)
+  const [launcherMetaStatus, setLauncherMetaStatus] = useState<string | null>(null)
+  const [isLoadingLauncherMeta, setIsLoadingLauncherMeta] = useState(false)
+  const [instanceVersion, setInstanceVersion] = useState<string | null>(null)
+  const [versionError, setVersionError] = useState<string | null>(null)
+  const [marketStatus, setMarketStatus] = useState<MarketedInstanceStatus | null>(null)
+  const [marketStatusError, setMarketStatusError] = useState<string | null>(null)
+  const [isLockingDownload, setIsLockingDownload] = useState(false)
+  const [lockStatus, setLockStatus] = useState<string | null>(null)
+  const [sharedMemories, setSharedMemories] = useState<string[]>([])
+  const [sharedError, setSharedError] = useState<string | null>(null)
+  const [isRegisteringShared, setIsRegisteringShared] = useState(false)
+  const [sharedStatus, setSharedStatus] = useState<string | null>(null)
 
   const canSubmit = identityState.isAuthenticated && memoryId.length > 0
+
+  const isSharedMemory = useMemo(() => {
+    return memoryId.length > 0 && sharedMemories.includes(memoryId)
+  }, [memoryId, sharedMemories])
+
+  const formatMarketStatus = (status: MarketedInstanceStatus | null) => {
+    if (!status) return '--'
+    if ('None' in status) return 'None'
+    if ('Unlisting' in status) return 'Unlisting'
+    if ('Active' in status) {
+      const [price, score] = status.Active
+      return `Active (price ${price.toString()}, score ${score})`
+    }
+    return '--'
+  }
+
+  const loadLauncherMeta = useCallback(async () => {
+    if (!memoryId) return
+    setIsLoadingLauncherMeta(true)
+    setLauncherMetaStatus(null)
+    setMarketStatusError(null)
+    setVersionError(null)
+    setSharedError(null)
+
+    fetchRemainingCycles(identityState.identity ?? undefined, memoryId)
+      .then((value) => {
+        setLauncherCycles(value)
+      })
+      .catch(() => {
+        setLauncherCycles(null)
+        setLauncherMetaStatus('Failed to load launcher cycles.')
+      })
+      .finally(() => {
+        setIsLoadingLauncherMeta(false)
+      })
+
+    fetchInstanceVersions(identityState.identity ?? undefined)
+      .then((value) => {
+        const match = value.find((entry) => entry[0] === memoryId)
+        setInstanceVersion(match ? match[1] : null)
+      })
+      .catch(() => {
+        setInstanceVersion(null)
+        setVersionError('Failed to load version.')
+      })
+
+    fetchMarketedStatus(identityState.identity ?? undefined, memoryId)
+      .then((value) => {
+        setMarketStatus(value)
+      })
+      .catch(() => {
+        setMarketStatus(null)
+        setMarketStatusError('Failed to load market status.')
+      })
+
+    fetchSharedMemories(identityState.identity ?? undefined)
+      .then((value) => {
+        setSharedMemories(value.map((principal) => principal.toText()))
+      })
+      .catch(() => {
+        setSharedMemories([])
+        setSharedError('Failed to load shared memories.')
+      })
+  }, [identityState.identity, memoryId])
+
+  useEffect(() => {
+    if (!memoryId) return
+    loadLauncherMeta()
+  }, [loadLauncherMeta, memoryId])
 
   const handleAddUser = async () => {
     if (!identityState.identity || !memoryId) return
@@ -69,14 +160,66 @@ const MemoryDetailPage = () => {
     setUpdateStatus(null)
 
     try {
-      const actor = await createLauncherActor(identityState.identity)
-      await actor.update_instance(memoryId)
+      await updateMemoryInstance(identityState.identity, memoryId)
       setUpdateStatus('Update triggered.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update instance'
       setUpdateStatus(message)
     } finally {
       setIsUpdating(false)
+    }
+  }
+
+  const handleUpdateInstanceWithOption = async () => {
+    if (!identityState.identity || !memoryId) return
+
+    setIsUpdatingWithOption(true)
+    setUpdateStatus(null)
+
+    try {
+      await updateMemoryInstanceWithOption(identityState.identity, memoryId, false)
+      setUpdateStatus('Update triggered.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update instance'
+      setUpdateStatus(message)
+    } finally {
+      setIsUpdatingWithOption(false)
+    }
+  }
+
+  const handleLockForDownload = async () => {
+    if (!identityState.identity || !memoryId) return
+
+    setIsLockingDownload(true)
+    setLockStatus(null)
+
+    try {
+      await lockInstanceForDownloading(identityState.identity, memoryId)
+      setLockStatus('Locked for downloading.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to lock for downloading'
+      setLockStatus(message)
+    } finally {
+      setIsLockingDownload(false)
+    }
+  }
+
+  const handleRegisterShared = async () => {
+    if (!identityState.identity || !memoryId) return
+
+    setIsRegisteringShared(true)
+    setSharedStatus(null)
+
+    try {
+      const principal = Principal.fromText(memoryId)
+      await registerSharedMemory(identityState.identity, principal)
+      setSharedStatus('Shared memory registered.')
+      loadLauncherMeta()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to register shared memory'
+      setSharedStatus(message)
+    } finally {
+      setIsRegisteringShared(false)
     }
   }
 
@@ -96,24 +239,29 @@ const MemoryDetailPage = () => {
               <div className='font-mono text-sm text-zinc-900'>{memoryId || '--'}</div>
             </div>
             <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-sm'>
-              <span className='text-muted-foreground'>Cycles balance</span>
+              <span className='text-muted-foreground'>Launcher cycles</span>
               <div className='flex items-center justify-between gap-2'>
                 <div className='font-mono text-sm text-zinc-900'>
-                  {canisterStatus.cycles ? canisterStatus.cycles.toString() : '--'}
+                  {launcherCycles !== null ? launcherCycles.toString() : '--'}
                 </div>
                 <Button
                   variant='ghost'
                   size='sm'
                   className='rounded-full text-xs text-zinc-500'
-                  onClick={canisterStatus.refresh}
-                  disabled={!canisterStatus.canRefresh}
+                  onClick={loadLauncherMeta}
+                  disabled={!memoryId || isLoadingLauncherMeta}
                 >
-                  {canisterStatus.isLoading ? 'Refreshing...' : 'Refresh'}
+                  {isLoadingLauncherMeta ? 'Refreshing...' : 'Refresh'}
                 </Button>
               </div>
-              {canisterStatus.error ? (
-                <span className='text-rose-500 text-xs'>{canisterStatus.error}</span>
+              {launcherMetaStatus ? (
+                <span className='text-rose-500 text-xs'>{launcherMetaStatus}</span>
               ) : null}
+            </div>
+            <div className='rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-sm'>
+              <span className='text-muted-foreground'>Version</span>
+              <div className='font-mono text-sm text-zinc-900'>{instanceVersion ?? '--'}</div>
+              {versionError ? <span className='text-rose-500 text-xs'>{versionError}</span> : null}
             </div>
           </CardContent>
         </Card>
@@ -134,7 +282,12 @@ const MemoryDetailPage = () => {
                 <select
                   className='h-9 rounded-md border border-input bg-background px-3 text-sm'
                   value={role}
-                  onChange={(event) => setRole(event.target.value as RoleOption)}
+                  onChange={(event) => {
+                    const nextRole = event.target.value
+                    if (nextRole === 'admin' || nextRole === 'writer' || nextRole === 'reader') {
+                      setRole(nextRole)
+                    }
+                  }}
                 >
                   <option value='admin'>admin</option>
                   <option value='writer'>writer</option>
@@ -156,17 +309,68 @@ const MemoryDetailPage = () => {
         <Card>
           <CardHeader className='flex flex-col items-start gap-2'>
             <span className='text-lg font-semibold'>Maintenance</span>
-            <span className='text-muted-foreground text-sm'>Run update_instance (update).</span>
+            <span className='text-muted-foreground text-sm'>Run update_instance_with_option (update).</span>
           </CardHeader>
           <CardContent className='flex flex-col items-start gap-3'>
             <Button
+              variant='outline'
               className='rounded-full'
-              onClick={handleUpdateInstance}
-              disabled={!canSubmit || isUpdating}
+              onClick={handleUpdateInstanceWithOption}
+              disabled={!canSubmit || isUpdatingWithOption}
             >
-              {isUpdating ? 'Updating...' : 'Trigger update'}
+              {isUpdatingWithOption ? 'Updating...' : 'Trigger update (option)'}
             </Button>
             {updateStatus ? <span className='text-sm text-muted-foreground'>{updateStatus}</span> : null}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className='flex flex-col items-start gap-2'>
+            <span className='text-lg font-semibold'>Market</span>
+            <span className='text-muted-foreground text-sm'>Check listing and lock for download.</span>
+          </CardHeader>
+          <CardContent className='flex flex-col items-start gap-3'>
+            <div className='text-sm text-zinc-700'>Status: {formatMarketStatus(marketStatus)}</div>
+            {marketStatusError ? (
+              <span className='text-xs text-rose-500'>{marketStatusError}</span>
+            ) : null}
+            <Button
+              variant='outline'
+              className='rounded-full'
+              onClick={handleLockForDownload}
+              disabled={!canSubmit || isLockingDownload}
+            >
+              {isLockingDownload ? 'Locking...' : 'Lock for download'}
+            </Button>
+            {lockStatus ? <span className='text-sm text-muted-foreground'>{lockStatus}</span> : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-col items-start gap-2'>
+            <span className='text-lg font-semibold'>Shared memory</span>
+            <span className='text-muted-foreground text-sm'>Register or list shared memories.</span>
+          </CardHeader>
+          <CardContent className='flex flex-col items-start gap-3'>
+            <div className='text-xs text-zinc-600'>
+              {sharedMemories.length
+                ? `${sharedMemories.length} shared memory item(s)`
+                : 'No shared memories registered.'}
+            </div>
+            {sharedError ? <span className='text-xs text-rose-500'>{sharedError}</span> : null}
+            {memoryId ? (
+              <div className='text-xs text-zinc-600'>
+                Current memory: {isSharedMemory ? 'registered' : 'not registered'}
+              </div>
+            ) : null}
+            <Button
+              className='rounded-full'
+              onClick={handleRegisterShared}
+              disabled={!canSubmit || isRegisteringShared || isSharedMemory}
+            >
+              {isRegisteringShared ? 'Registering...' : 'Register current memory'}
+            </Button>
+            {sharedStatus ? <span className='text-sm text-muted-foreground'>{sharedStatus}</span> : null}
           </CardContent>
         </Card>
       </div>
