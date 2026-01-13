@@ -6,8 +6,10 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api'
 
-const PDF_WORKER_SRC =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js'
+const PDF_WORKER_SRC = new URL(
+  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString()
 
 type TextContentItem = TextItem | TextMarkedContent
 

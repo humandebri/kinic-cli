@@ -43,6 +43,7 @@ const InsertPage = () => {
   const [isReading, setIsReading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [showFullPreview, setShowFullPreview] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ total: number; done: number } | null>(null)
 
@@ -61,8 +62,11 @@ const InsertPage = () => {
 
   const previewText = useMemo(() => {
     if (!markdown) return ''
+    if (showFullPreview) return markdown
     return markdown.length > 600 ? `${markdown.slice(0, 600)}…` : markdown
-  }, [markdown])
+  }, [markdown, showFullPreview])
+
+  const canExpandPreview = markdown.length > 600
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -72,6 +76,7 @@ const InsertPage = () => {
     setIsReading(true)
     setProgress(null)
     setIsCompleted(false)
+    setShowFullPreview(false)
 
     try {
       // Parse locally to satisfy the "client-side processing" requirement.
@@ -195,6 +200,17 @@ const InsertPage = () => {
                 value={isReading ? 'Reading file…' : previewText}
                 readOnly
               />
+              {canExpandPreview ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='w-fit rounded-full'
+                  onClick={() => setShowFullPreview((prev) => !prev)}
+                >
+                  {showFullPreview ? 'Show less' : 'Show full preview'}
+                </Button>
+              ) : null}
             </div>
             <div className='flex items-center gap-3'>
               <Button
