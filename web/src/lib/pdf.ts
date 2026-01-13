@@ -23,7 +23,7 @@ const ensureWorker = () => {
   }
 }
 
-export const extractTextFromPdf = async (file: File): Promise<string> => {
+export const extractTextFromPdfPages = async (file: File): Promise<string[]> => {
   ensureWorker()
 
   const data = await file.arrayBuffer()
@@ -45,5 +45,10 @@ export const extractTextFromPdf = async (file: File): Promise<string> => {
     chunks.push(pageText)
   }
 
-  return chunks.join('\n\n')
+  return chunks
+}
+
+export const extractTextFromPdf = async (file: File): Promise<string> => {
+  const pages = await extractTextFromPdfPages(file)
+  return pages.join('\n\n')
 }
