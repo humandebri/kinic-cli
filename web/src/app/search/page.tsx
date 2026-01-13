@@ -440,9 +440,9 @@ const SearchPage = () => {
   )
 
   return (
-    <AppShell pageTitle='Search' identityState={identityState}>
-      <div className='grid items-stretch gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]'>
-        <div className='grid h-full gap-6'>
+    <AppShell pageTitle='Search' identityState={identityState} fullWidth>
+      <div className='grid items-stretch gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)]'>
+        <div className='grid h-full min-w-0 gap-6'>
           <Card>
             <CardHeader className='flex flex-col items-start gap-2'>
               <span className='text-lg font-semibold'>Sources & search</span>
@@ -558,7 +558,7 @@ const SearchPage = () => {
           </Card>
         </div>
 
-        <Card className='flex h-full flex-col'>
+        <Card className='flex h-full min-w-0 flex-col'>
           <CardHeader className='flex flex-col items-start gap-2'>
             <span className='text-lg font-semibold'>Ask</span>
           </CardHeader>
@@ -572,7 +572,7 @@ const SearchPage = () => {
                 chatMessages.map((message) => (
                   <div
                     key={message.id}
-                    className={`rounded-2xl px-4 py-3 text-sm ${
+                    className={`break-words rounded-2xl px-4 py-3 text-sm ${
                       message.role === 'user'
                         ? 'bg-zinc-900 text-white'
                         : 'border border-zinc-200/70 bg-white/80 text-zinc-900'
@@ -593,7 +593,7 @@ const SearchPage = () => {
                             >
                               <div className='flex items-center gap-2 text-[10px] text-zinc-500'>
                                 <span className='font-semibold'>[{index + 1}]</span>
-                                <span className='font-mono'>{source.memoryId}</span>
+                                <span className='font-mono break-all'>{source.memoryId}</span>
                               </div>
                               <div className='text-xs text-zinc-700'>{source.sentence}</div>
                             </div>
@@ -612,7 +612,7 @@ const SearchPage = () => {
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault()
                     handleChatSubmit()
                   }
