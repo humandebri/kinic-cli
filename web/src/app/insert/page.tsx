@@ -17,10 +17,12 @@ import { createMemoryActor } from '@/lib/memory'
 import { lateChunking } from '@/lib/embedding'
 import { extractTextFromPdfPages } from '@/lib/pdf'
 
-type UploadKind = 'pdf' | 'markdown'
+type UploadKind = 'pdf' | 'markdown' | 'text'
 
 const MAX_SEGMENT_CHARS = 20_000
+const MAX_TOTAL_CHARS = 200_000
 const UI_YIELD_INTERVAL = 5
+const PREVIEW_LIMIT = 600
 type InsertPhase = 'idle' | 'chunking' | 'inserting' | 'done' | 'error'
 
 const isPdfFile = (file: File) => {
@@ -44,11 +46,14 @@ const InsertPage = () => {
   const [uploadKind, setUploadKind] = useState<UploadKind | null>(null)
   const [markdown, setMarkdown] = useState('')
   const [sourceSegments, setSourceSegments] = useState<string[]>([])
+  const [pasteText, setPasteText] = useState('')
+  const [isPasteMode, setIsPasteMode] = useState(false)
   const [tag, setTag] = useState('')
   const [isReading, setIsReading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
-  const [showFullPreview, setShowFullPreview] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewDraft, setPreviewDraft] = useState('')
   const [showTransferPanel, setShowTransferPanel] = useState(false)
   const [insertPhase, setInsertPhase] = useState<InsertPhase>('idle')
   const [status, setStatus] = useState<string | null>(null)
@@ -63,17 +68,23 @@ const InsertPage = () => {
     setIsCompleted(false)
   }, [selectedMemoryId])
 
+  const isWithinLimit = markdown.length <= MAX_TOTAL_CHARS
   const canSubmit = Boolean(
-    identityState.isAuthenticated && selectedMemoryId && isOwner && markdown.trim() && tag.trim()
+    identityState.isAuthenticated &&
+      selectedMemoryId &&
+      isOwner &&
+      markdown.trim() &&
+      tag.trim() &&
+      isWithinLimit
   )
 
   const previewText = useMemo(() => {
     if (!markdown) return ''
-    if (showFullPreview) return markdown
-    return markdown.length > 600 ? `${markdown.slice(0, 600)}…` : markdown
-  }, [markdown, showFullPreview])
+    return markdown.length > PREVIEW_LIMIT ? `${markdown.slice(0, PREVIEW_LIMIT)}…` : markdown
+  }, [markdown])
 
-  const canExpandPreview = markdown.length > 600
+  const canExpandPreview = markdown.length > PREVIEW_LIMIT
+  const previewCountLabel = `${markdown.length.toLocaleString()} / ${MAX_TOTAL_CHARS.toLocaleString()} chars`
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -83,7 +94,10 @@ const InsertPage = () => {
     setIsReading(true)
     setProgress(null)
     setIsCompleted(false)
-    setShowFullPreview(false)
+    setIsPreviewOpen(false)
+    setPreviewDraft('')
+    setPasteText('')
+    setIsPasteMode(false)
 
     try {
       // Parse locally to satisfy the "client-side processing" requirement.
@@ -93,11 +107,21 @@ const InsertPage = () => {
         const joined = pages.join('\n\n')
         setSourceSegments(pages)
         setMarkdown(joined)
+        setPasteText('')
+        setIsPasteMode(false)
+        if (joined.length > MAX_TOTAL_CHARS) {
+          setStatus(`Input is too large (${joined.length} chars). Limit is ${MAX_TOTAL_CHARS}.`)
+        }
       } else if (isMarkdownFile(file)) {
         setUploadKind('markdown')
         const text = await file.text()
         setSourceSegments([text])
         setMarkdown(text)
+        setPasteText('')
+        setIsPasteMode(false)
+        if (text.length > MAX_TOTAL_CHARS) {
+          setStatus(`Input is too large (${text.length} chars). Limit is ${MAX_TOTAL_CHARS}.`)
+        }
       } else {
         throw new Error('Only PDF or Markdown files are supported.')
       }
@@ -110,9 +134,42 @@ const InsertPage = () => {
       setSourceSegments([])
       setFileName(null)
       setUploadKind(null)
+      setPasteText('')
+      setIsPasteMode(false)
     } finally {
       setIsReading(false)
     }
+  }
+
+  const handleOpenPreview = () => {
+    if (!markdown) return
+    setPreviewDraft(markdown)
+    setIsPreviewOpen(true)
+  }
+
+  const handleOpenPaste = () => {
+    setIsPasteMode(true)
+    setPreviewDraft(pasteText || '')
+    setIsPreviewOpen(true)
+  }
+
+  const handleApplyPreview = () => {
+    const nextValue = previewDraft
+    if (isPasteMode) {
+      setPasteText(nextValue)
+      setUploadKind(nextValue ? 'text' : uploadKind)
+      setFileName(null)
+      setIsPasteMode(false)
+    }
+    setMarkdown(nextValue)
+    setSourceSegments([nextValue])
+    setIsCompleted(false)
+    if (nextValue.length > MAX_TOTAL_CHARS) {
+      setStatus(`Input is too large (${nextValue.length} chars). Limit is ${MAX_TOTAL_CHARS}.`)
+    } else {
+      setStatus(null)
+    }
+    setIsPreviewOpen(false)
   }
 
   const handleInsert = async () => {
@@ -213,23 +270,47 @@ const InsertPage = () => {
                 ) : null}
               </div>
             </div>
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm text-zinc-600'>File</label>
-              <label className='flex items-center gap-3 rounded-2xl border border-zinc-200/70 bg-white/70 px-3 py-2 text-sm text-zinc-700'>
-                <span className='text-xs font-medium text-zinc-700'>
-                  Choose file
-                </span>
-                <span className='text-muted-foreground text-xs'>
-                  {fileName ? `${fileName} (${uploadKind ?? 'unknown'})` : 'No file selected'}
-                </span>
-                <input
-                  type='file'
-                  accept='.pdf,.md,.markdown'
-                  onChange={handleFileChange}
-                  className='sr-only'
-                />
-              </label>
-              <span className='text-muted-foreground text-xs'>PDF or Markdown only.</span>
+            <div className='grid gap-4 md:grid-cols-2'>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <label className='inline-flex'>
+                    <span className='inline-flex items-center rounded-full border border-zinc-200/70 bg-white/70 px-3 py-2 text-xs font-medium text-zinc-700'>
+                      Choose file
+                    </span>
+                    <input
+                      type='file'
+                      accept='.pdf,.md,.markdown'
+                      onChange={handleFileChange}
+                      className='sr-only'
+                    />
+                  </label>
+                  <span className='text-muted-foreground text-xs'>
+                    {fileName ? `${fileName} (${uploadKind ?? 'unknown'})` : 'No file selected'}
+                  </span>
+                </div>
+                <span className='text-muted-foreground text-xs'>PDF or Markdown only.</span>
+              </div>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='rounded-full'
+                    onClick={handleOpenPaste}
+                  >
+                    Paste text
+                  </Button>
+                  {pasteText ? (
+                    <span className='text-xs text-zinc-500'>
+                      {pasteText.length.toLocaleString()} chars
+                    </span>
+                  ) : (
+                    <span className='text-xs text-zinc-500'>No text pasted</span>
+                  )}
+                </div>
+                <span className='text-muted-foreground text-xs'>Paste plain text or Markdown.</span>
+              </div>
             </div>
             <div className='flex flex-col gap-2'>
               <label className='text-sm text-zinc-600'>Tag</label>
@@ -255,11 +336,12 @@ const InsertPage = () => {
                   variant='outline'
                   size='sm'
                   className='w-fit rounded-full'
-                  onClick={() => setShowFullPreview((prev) => !prev)}
+                  onClick={handleOpenPreview}
                 >
-                  {showFullPreview ? 'Show less' : 'Show full preview'}
+                  Read more
                 </Button>
               ) : null}
+              <span className='text-muted-foreground text-xs'>{previewCountLabel}</span>
             </div>
             <div className='flex items-center gap-3'>
               <Button
@@ -322,6 +404,62 @@ const InsertPage = () => {
               ) : null}
             </CardContent>
           </Card>
+        </div>
+      ) : null}
+      {isPreviewOpen ? (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in-0 duration-200'
+          role='presentation'
+        >
+          <div
+            className='w-[95vw] max-w-4xl rounded-2xl bg-white p-6 shadow-xl animate-in fade-in-0 zoom-in-95 duration-200'
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className='flex items-center justify-between'>
+              <span className='text-lg font-semibold text-zinc-900'>Edit preview</span>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-8 w-8 rounded-full'
+                onClick={() => setIsPreviewOpen(false)}
+              >
+                <XIcon className='h-4 w-4' />
+              </Button>
+            </div>
+            <div className='mt-4 space-y-2'>
+              <textarea
+                className='h-[70vh] w-full resize-none rounded-2xl border border-zinc-200/70 bg-white/70 p-3 pr-4 text-sm text-zinc-900 box-border overflow-y-auto'
+                value={previewDraft}
+                onChange={(event) => setPreviewDraft(event.target.value)}
+              />
+              <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500'>
+                <span>
+                  {previewDraft.length.toLocaleString()} / {MAX_TOTAL_CHARS.toLocaleString()} chars
+                </span>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='outline'
+                    className='rounded-full'
+                    onClick={() => setIsPreviewOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className='rounded-full'
+                    onClick={handleApplyPreview}
+                    disabled={previewDraft.length > MAX_TOTAL_CHARS}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+              {previewDraft.length > MAX_TOTAL_CHARS ? (
+                <div className='text-xs text-rose-600'>
+                  Input is too large. Please shorten to {MAX_TOTAL_CHARS.toLocaleString()} chars.
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
     </AppShell>
