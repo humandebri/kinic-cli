@@ -96,9 +96,6 @@ fn encode_search_args(embedding: Vec<f32>) -> Result<Vec<u8>> {
 fn encode_add_user_args(principal: Principal, role: u8) -> Result<Vec<u8>> {
     Ok(candid::encode_args((principal, role))?)
 }
-fn encode_update_instance_args(instance_pid_str: String) -> Result<Vec<u8>> {
-    Ok(candid::encode_one(instance_pid_str)?)
-}
 fn encode_tagged_embeddings_args(tag: String) -> Result<Vec<u8>> {
     Ok(candid::encode_one(tag)?)
 }

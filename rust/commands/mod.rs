@@ -17,8 +17,6 @@ pub mod search_raw;
 pub mod tagged_embeddings;
 pub mod update;
 pub mod reset;
-pub mod balance;
-pub mod ask_ai;
 
 #[derive(Clone)]
 pub struct CommandContext {
