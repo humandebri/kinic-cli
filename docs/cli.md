@@ -48,7 +48,7 @@ Command-line companion for deploying and operating Kinic “memory” canisters.
 
 ## Running the CLI
 
-All commands require `--identity`. Use `--ic` to talk to mainnet; omit it (or leave false) for the local replica.
+Use either `--identity` (dfx identity name stored in the system keychain) or `--ii` (Internet Identity login). Use `--ic` to talk to mainnet; omit it (or leave false) for the local replica. If you are not using `--ii`, `--identity <name>` is required for CLI commands.
 
 ```bash
 cargo run -- --identity alice list
@@ -56,6 +56,27 @@ cargo run -- --identity alice create \
   --name "Demo memory" \
   --description "Local test canister"
 ```
+
+### Internet Identity flow (--ii)
+
+First, open the browser login flow and store a delegation (default TTL: 6 hours):
+
+```bash
+cargo run -- --ii login
+```
+
+Then run commands with `--ii`:
+
+```bash
+cargo run -- --ii list
+cargo run -- --ii create \
+  --name "Demo memory" \
+  --description "Local test canister"
+```
+
+Notes:
+- Delegations are stored at `~/.config/kinic/identity.json`.
+- The login flow uses a local callback on port `8620`.
 
 ### Convert PDF to markdown (inspect only)
 

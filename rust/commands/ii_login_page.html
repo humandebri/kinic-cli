@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Kinic CLI Login</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 24px; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Kinic CLI Login</h1>
+  <p id="status">Click the button below to open Internet Identity.</p>
+  <p id="principal"></p>
+  <button id="open-ii" type="button">Open Internet Identity</button>
+  <script>
+    const STATUS = document.getElementById("status");
+    const OPEN_BUTTON = document.getElementById("open-ii");
+    const II_URL = "{{II_URL}}";
+    const II_ORIGIN = "{{II_ORIGIN}}";
+    const SESSION_PUBLIC_KEY_HEX = "{{SESSION_KEY_HEX}}";
+    const STATE = "{{STATE}}";
+    const MAX_TTL = BigInt("{{TTL_NS}}");
+    const PRINCIPAL = document.getElementById("principal");
+
+    function hexToBytes(hex) {
+      const bytes = [];
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes.push(parseInt(hex.slice(i, i + 2), 16));
+      }
+      return new Uint8Array(bytes);
+    }
+
+    function normalizeDelegations(delegations) {
+      return delegations.map((entry) => {
+        const delegation = entry.delegation;
+        const targets = delegation.targets
+          ? delegation.targets.map((t) => (t && t.toText ? t.toText() : t))
+          : undefined;
+        return {
+          delegation: {
+            pubkey: Array.from(delegation.pubkey),
+            expiration: delegation.expiration.toString(),
+            targets,
+          },
+          signature: Array.from(entry.signature),
+        };
+      });
+    }
+
+    function normalizeUserPublicKey(userPublicKey) {
+      return Array.from(userPublicKey);
+    }
+
+    const sessionPublicKey = hexToBytes(SESSION_PUBLIC_KEY_HEX);
+    let authWindow = null;
+    function openAuthWindow() {
+      authWindow = window.open(II_URL, "kinic-ii", "width=480,height=720");
+      if (!authWindow) {
+        STATUS.textContent = "Popup blocked. Please allow popups and retry.";
+        return;
+      }
+      STATUS.textContent = "Waiting for authentication...";
+      OPEN_BUTTON.disabled = true;
+      OPEN_BUTTON.textContent = "Opening...";
+    }
+
+    OPEN_BUTTON.addEventListener("click", () => {
+      openAuthWindow();
+    });
+
+    window.addEventListener("message", async (event) => {
+      if (event.origin !== II_ORIGIN) {
+        return;
+      }
+      const msg = event.data;
+      if (!msg || !msg.kind) {
+        return;
+      }
+      if (msg.kind === "authorize-ready") {
+        if (!authWindow) {
+          STATUS.textContent = "Click 'Open Internet Identity' to continue.";
+          return;
+        }
+        authWindow.postMessage({
+          kind: "authorize-client",
+          sessionPublicKey,
+          maxTimeToLive: MAX_TTL,
+          derivationOrigin: window.location.origin,
+        }, II_ORIGIN);
+      } else if (msg.kind === "authorize-client-success") {
+        STATUS.textContent = "Saving delegation...";
+        const payload = {
+          delegations: normalizeDelegations(msg.delegations || []),
+          userPublicKey: normalizeUserPublicKey(msg.userPublicKey),
+          state: STATE,
+        };
+        const resp = await fetch("/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          STATUS.textContent = "Done. You can close this tab.";
+          if (data.principal) {
+            PRINCIPAL.textContent = `Principal: ${data.principal}`;
+          }
+          OPEN_BUTTON.style.display = "none";
+        } else {
+          STATUS.textContent = "Callback failed. Please retry.";
+          OPEN_BUTTON.disabled = false;
+          OPEN_BUTTON.textContent = "Open Internet Identity";
+        }
+      } else if (msg.kind === "authorize-client-failure") {
+        STATUS.textContent = "Login failed. Please retry.";
+        OPEN_BUTTON.disabled = false;
+        OPEN_BUTTON.textContent = "Open Internet Identity";
+      }
+    });
+  </script>
+</body>
+</html>
