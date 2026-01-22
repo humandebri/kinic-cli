@@ -30,7 +30,7 @@ pub struct GlobalOpts {
     #[arg(
         long,
         conflicts_with = "ii",
-        required_unless_present = "ii",
+        required_unless_present_any = ["ii", "anonymous"],
         help = "Dfx identity name used to load credentials from the system keyring"
     )]
     pub identity: Option<String>,
@@ -40,6 +40,13 @@ pub struct GlobalOpts {
         help = "Use Internet Identity login (delegation saved to identity.json)"
     )]
     pub ii: bool,
+
+    #[arg(
+        long,
+        conflicts_with_all = ["ii", "identity"],
+        help = "Use anonymous identity (no keychain or delegation)"
+    )]
+    pub anonymous: bool,
 
     #[arg(
         long,
@@ -65,6 +72,8 @@ pub enum Command {
     ConvertPdf(ConvertPdfArgs),
     #[command(about = "Search within a memory canister using embeddings")]
     Search(SearchArgs),
+    #[command(about = "Search within a memory canister and return JSON output")]
+    SearchJson(SearchArgs),
     #[command(about = "Search within a memory canister using a precomputed embedding")]
     SearchRaw(SearchRawArgs),
     #[command(about = "Fetch embeddings for a tag from a memory canister")]

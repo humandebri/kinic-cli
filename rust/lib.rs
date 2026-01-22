@@ -43,6 +43,10 @@ pub async fn run() -> Result<()> {
 
     fmt().with_max_level(max).without_time().try_init().ok();
 
+    if cli.global.anonymous && matches!(cli.command, cli::Command::Login(_)) {
+        anyhow::bail!("--anonymous cannot be used with login");
+    }
+
     if cli.global.ii
         && matches!(
             cli.command,
@@ -68,6 +72,8 @@ pub async fn run() -> Result<()> {
 
     let agent_factory = if matches!(cli.command, cli::Command::Login(_)) {
         AgentFactory::new(cli.global.ic, String::new())
+    } else if cli.global.anonymous {
+        AgentFactory::new_with_identity(cli.global.ic, ic_agent::identity::AnonymousIdentity)
     } else if cli.global.ii {
         let path = identity_path
             .clone()

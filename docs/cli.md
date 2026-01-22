@@ -50,6 +50,8 @@ Command-line companion for deploying and operating Kinic “memory” canisters.
 
 Use either `--identity` (dfx identity name stored in the system keychain) or `--ii` (Internet Identity login). Use `--ic` to talk to mainnet; omit it (or leave false) for the local replica. If you are not using `--ii`, `--identity <name>` is required for CLI commands.
 
+You can also use `--anonymous` to run commands without a keychain identity or Internet Identity (for canisters that allow anonymous access).
+
 ```bash
 cargo run -- --identity alice list
 cargo run -- --identity alice create \
@@ -124,6 +126,16 @@ cargo run -- --identity alice search \
 ```
 
 The CLI fetches an embedding for the query and prints the scored matches returned by the memory canister.
+
+### Search (JSON)
+
+```bash
+cargo run -- --identity alice search-json \
+  --memory-id yta6k-5x777-77774-aaaaa-cai \
+  --query "Hello"
+```
+
+Outputs a JSON payload with `memory_id`, `query`, `result_count`, and `results` (array of `{score, text}`).
 
 ### Manage config (add user)
 

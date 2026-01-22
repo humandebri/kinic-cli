@@ -13,6 +13,7 @@ pub mod insert_raw;
 pub mod insert_pdf;
 pub mod list;
 pub mod search;
+pub mod search_json;
 pub mod search_raw;
 pub mod tagged_embeddings;
 pub mod update;
@@ -32,6 +33,7 @@ pub async fn run_command(command: Command, ctx: CommandContext) -> Result<()> {
         Command::InsertRaw(args) => insert_raw::handle(args, &ctx).await,
         Command::InsertPdf(args) => insert_pdf::handle(args, &ctx).await,
         Command::Search(args) => search::handle(args, &ctx).await,
+        Command::SearchJson(args) => search_json::handle(args, &ctx).await,
         Command::SearchRaw(args) => search_raw::handle(args, &ctx).await,
         Command::TaggedEmbeddings(args) => tagged_embeddings::handle(args, &ctx).await,
         Command::ConvertPdf(args) => convert_pdf::handle(args).await,
