@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { GithubIcon, RefreshCwIcon, TwitterIcon, UserIcon } from 'lucide-react'
 import { Principal } from '@dfinity/principal'
+import { useRouter } from 'next/navigation'
 
 import {
   Breadcrumb,
@@ -57,6 +58,8 @@ import { primarySection, pageSections } from '@/data/dashboard-nav'
 import { useBalance } from '@/components/providers/balance-provider'
 import type { IdentityState } from '@/hooks/use-identity'
 import { createLedgerActor, transferIcrc1 } from '@/lib/ledger'
+import { roleLabelMap } from '@/lib/access-control'
+import { fetchMemoryUsers } from '@/lib/memory'
 import { useMemories } from '@/hooks/use-memories'
 import { useMounted } from '@/hooks/use-mounted'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
@@ -123,7 +126,11 @@ const AppShell = ({
   const balance = useBalance()
   const memories = useMemories(identityState.identity, identityState.isReady)
   const { selectedMemoryId, setSelectedMemoryId } = useSelectedMemory()
+  const router = useRouter()
   const [customCanisters, setCustomCanisters] = useState<string[]>([])
+  const [memoryPermissions, setMemoryPermissions] = useState<
+    Record<string, { label: string | null; isLoading: boolean; error: string | null; principal: string | null }>
+  >({})
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [toAddress, setToAddress] = useState('')
   const [amount, setAmount] = useState('')
@@ -143,29 +150,30 @@ const AppShell = ({
     }
   }, [])
 
-  const ownedCanisters = useMemo(() => {
-    return new Set(
-      memories.memories
-        .map((memory) => memory.principalText)
-        .filter((value): value is string => Boolean(value))
-    )
-  }, [memories.memories])
-
-  const memoryOptions = useMemo(() => {
+  const memoryOptionIds = useMemo(() => {
     const merged = new Set<string>()
     for (const item of customCanisters) merged.add(item)
     if (selectedMemoryId) merged.add(selectedMemoryId)
     for (const memory of memories.memories) {
       if (memory.principalText) merged.add(memory.principalText)
     }
-    return Array.from(merged).map((id) => {
-      const isOwner = identityState.isAuthenticated && ownedCanisters.has(id)
+    return Array.from(merged)
+  }, [customCanisters, selectedMemoryId, memories.memories])
+
+  const memoryOptions = useMemo(() => {
+    return memoryOptionIds.map((id) => {
+      const permission = memoryPermissions[id]
+      const permissionLabel = identityState.isAuthenticated
+        ? permission?.isLoading
+          ? '...'
+          : permission?.label ?? 'unknown'
+        : 'not connected'
       return {
         id,
-        label: isOwner ? id : `${id} (Not authorized)`
+        label: `${id} (${permissionLabel})`
       }
     })
-  }, [customCanisters, selectedMemoryId, memories.memories, ownedCanisters, identityState.isAuthenticated])
+  }, [memoryOptionIds, memoryPermissions, identityState.isAuthenticated])
   const [sendLoading, setSendLoading] = useState(false)
   const memoryCount = identityState.isAuthenticated ? String(memoryOptions.length) : '0'
   const isSendDisabled = sendLoading || !identityState.isAuthenticated
@@ -173,6 +181,49 @@ const AppShell = ({
     if (balance.balanceBase === null) return '--'
     return formatKinicInput(balance.balanceBase)
   }, [balance.balanceBase])
+
+  const loadMemoryPermission = async (memoryId: string, principalText: string) => {
+    setMemoryPermissions((prev) => ({
+      ...prev,
+      [memoryId]: { label: null, isLoading: true, error: null, principal: principalText }
+    }))
+    try {
+      const users = await fetchMemoryUsers(identityState.identity ?? undefined, memoryId)
+      const matched = users.find(([userText]) => userText === principalText)
+      const label = matched ? roleLabelMap[matched[1]] ?? 'unknown' : 'no access'
+      setMemoryPermissions((prev) => ({
+        ...prev,
+        [memoryId]: { label, isLoading: false, error: null, principal: principalText }
+      }))
+    } catch (permissionError) {
+      const message = permissionError instanceof Error ? permissionError.message : 'Failed to load permission.'
+      const isInvalidUser =
+        message.includes('Invalid user') || message.includes('IC0406') || message.includes('invalid user')
+      setMemoryPermissions((prev) => ({
+        ...prev,
+        [memoryId]: {
+          label: isInvalidUser ? 'no access' : 'unknown',
+          isLoading: false,
+          error: message,
+          principal: principalText
+        }
+      }))
+    }
+  }
+
+  useEffect(() => {
+    if (!identityState.isAuthenticated || !identityState.principalText) {
+      setMemoryPermissions({})
+      return
+    }
+
+    memoryOptionIds.forEach((memoryId) => {
+      const permissionEntry = memoryPermissions[memoryId]
+      if (!permissionEntry || permissionEntry.principal !== identityState.principalText) {
+        loadMemoryPermission(memoryId, identityState.principalText)
+      }
+    })
+  }, [memoryOptionIds, memoryPermissions, identityState.isAuthenticated, identityState.principalText, identityState.identity])
 
   const openSendModal = () => {
     setSendModalOpen(true)
@@ -367,7 +418,15 @@ const AppShell = ({
                   <div className='flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 text-xs text-zinc-600 shadow-sm backdrop-blur'>
                     <Select
                       value={selectedMemoryId ?? ''}
-                      onValueChange={(value) => setSelectedMemoryId(value || null)}
+                      onValueChange={(value) => {
+                        const nextId = value || null
+                        setSelectedMemoryId(nextId)
+                        if (nextId) {
+                          router.push(`/memories/${nextId}`)
+                        } else {
+                          router.push('/memories')
+                        }
+                      }}
                       disabled={!memoryOptions.length}
                     >
                       <SelectTrigger className='h-7 w-[320px] border-none bg-transparent px-0 shadow-none focus:ring-0'>

@@ -12,8 +12,10 @@ export type MemoryActor = {
   insert: (embedding: number[], text: string) => Promise<number>
   search: (embedding: number[]) => Promise<Array<[number, string]>>
   add_new_user: (principal: Principal, role: number) => Promise<void>
+  remove_user: (principal: Principal) => Promise<void>
   get_version: () => Promise<string>
   get_cycle_balance: () => Promise<bigint>
+  get_users: () => Promise<Array<[string, number]>>
 }
 
 const memoryIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
@@ -21,8 +23,10 @@ const memoryIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
     insert: IDL.Func([IDL.Vec(IDL.Float32), IDL.Text], [IDL.Nat32], []),
     search: IDL.Func([IDL.Vec(IDL.Float32)], [IDL.Vec(IDL.Tuple(IDL.Float32, IDL.Text))], ['query']),
     add_new_user: IDL.Func([IDL.Principal, IDL.Nat8], [], []),
+    remove_user: IDL.Func([IDL.Principal], [], []),
     get_version: IDL.Func([], [IDL.Text], ['query']),
-    get_cycle_balance: IDL.Func([], [IDL.Nat], ['query'])
+    get_cycle_balance: IDL.Func([], [IDL.Nat], ['query']),
+    get_users: IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat8))], ['query'])
   })
 }
 
@@ -59,4 +63,12 @@ export const fetchMemoryCycles = async (
 ): Promise<bigint> => {
   const actor = await createMemoryActor(identity, canisterId)
   return actor.get_cycle_balance()
+}
+
+export const fetchMemoryUsers = async (
+  identity: Identity | undefined,
+  canisterId: string
+): Promise<Array<[string, number]>> => {
+  const actor = await createMemoryActor(identity, canisterId)
+  return actor.get_users()
 }
