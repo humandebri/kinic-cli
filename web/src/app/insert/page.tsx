@@ -3,27 +3,24 @@
 // Why: Provides a full insert workflow in the web UI.
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ShieldAlertIcon, XIcon } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { XIcon } from 'lucide-react'
 
 import AppShell from '@/components/layout/app-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useIdentityState } from '@/components/providers/identity-provider'
-import { useMemories } from '@/hooks/use-memories'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { createMemoryActor } from '@/lib/memory'
 import { lateChunking } from '@/lib/embedding'
 import { extractTextFromPdfPages } from '@/lib/pdf'
-
-type UploadKind = 'pdf' | 'markdown' | 'text'
+import { useInsertStore } from '@/stores/insert'
 
 const MAX_SEGMENT_CHARS = 20_000
 const MAX_TOTAL_CHARS = 300_000
 const UI_YIELD_INTERVAL = 5
 const PREVIEW_LIMIT = 600
-type InsertPhase = 'idle' | 'chunking' | 'inserting' | 'done' | 'error'
 
 const isPdfFile = (file: File) => {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
@@ -40,39 +37,48 @@ const isMarkdownFile = (file: File) => {
 
 const InsertPage = () => {
   const identityState = useIdentityState()
-  const memories = useMemories(identityState.identity, identityState.isReady)
   const { selectedMemoryId } = useSelectedMemory()
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [uploadKind, setUploadKind] = useState<UploadKind | null>(null)
-  const [markdown, setMarkdown] = useState('')
-  const [sourceSegments, setSourceSegments] = useState<string[]>([])
-  const [pasteText, setPasteText] = useState('')
-  const [isPasteMode, setIsPasteMode] = useState(false)
-  const [tag, setTag] = useState('')
-  const [isReading, setIsReading] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-  const [previewDraft, setPreviewDraft] = useState('')
-  const [showTransferPanel, setShowTransferPanel] = useState(false)
-  const [insertPhase, setInsertPhase] = useState<InsertPhase>('idle')
-  const [status, setStatus] = useState<string | null>(null)
-  const [progress, setProgress] = useState<{ total: number; done: number } | null>(null)
-
-  const isOwner = useMemo(() => {
-    if (!selectedMemoryId) return false
-    return memories.memories.some((memory) => memory.principalText === selectedMemoryId)
-  }, [memories.memories, selectedMemoryId])
+  const fileName = useInsertStore((state) => state.fileName)
+  const setFileName = useInsertStore((state) => state.setFileName)
+  const uploadKind = useInsertStore((state) => state.uploadKind)
+  const setUploadKind = useInsertStore((state) => state.setUploadKind)
+  const markdown = useInsertStore((state) => state.markdown)
+  const setMarkdown = useInsertStore((state) => state.setMarkdown)
+  const sourceSegments = useInsertStore((state) => state.sourceSegments)
+  const setSourceSegments = useInsertStore((state) => state.setSourceSegments)
+  const pasteText = useInsertStore((state) => state.pasteText)
+  const setPasteText = useInsertStore((state) => state.setPasteText)
+  const isPasteMode = useInsertStore((state) => state.isPasteMode)
+  const setIsPasteMode = useInsertStore((state) => state.setIsPasteMode)
+  const tag = useInsertStore((state) => state.tag)
+  const setTag = useInsertStore((state) => state.setTag)
+  const isReading = useInsertStore((state) => state.isReading)
+  const setIsReading = useInsertStore((state) => state.setIsReading)
+  const isSubmitting = useInsertStore((state) => state.isSubmitting)
+  const setIsSubmitting = useInsertStore((state) => state.setIsSubmitting)
+  const isCompleted = useInsertStore((state) => state.isCompleted)
+  const setIsCompleted = useInsertStore((state) => state.setIsCompleted)
+  const isPreviewOpen = useInsertStore((state) => state.isPreviewOpen)
+  const setIsPreviewOpen = useInsertStore((state) => state.setIsPreviewOpen)
+  const previewDraft = useInsertStore((state) => state.previewDraft)
+  const setPreviewDraft = useInsertStore((state) => state.setPreviewDraft)
+  const showTransferPanel = useInsertStore((state) => state.showTransferPanel)
+  const setShowTransferPanel = useInsertStore((state) => state.setShowTransferPanel)
+  const insertPhase = useInsertStore((state) => state.insertPhase)
+  const setInsertPhase = useInsertStore((state) => state.setInsertPhase)
+  const status = useInsertStore((state) => state.status)
+  const setStatus = useInsertStore((state) => state.setStatus)
+  const progress = useInsertStore((state) => state.progress)
+  const setProgress = useInsertStore((state) => state.setProgress)
 
   useEffect(() => {
     setIsCompleted(false)
-  }, [selectedMemoryId])
+  }, [selectedMemoryId, setIsCompleted])
 
   const isWithinLimit = markdown.length <= MAX_TOTAL_CHARS
   const canSubmit = Boolean(
     identityState.isAuthenticated &&
       selectedMemoryId &&
-      isOwner &&
       markdown.trim() &&
       tag.trim() &&
       isWithinLimit
@@ -256,18 +262,7 @@ const InsertPage = () => {
                 <div className='flex flex-wrap items-center gap-2'>
                   <span className='text-muted-foreground'>Selected</span>
                   <span className='font-mono text-sm text-zinc-900'>{selectedMemoryId ?? '--'}</span>
-                  {selectedMemoryId && identityState.isAuthenticated && !isOwner ? (
-                    <span className='inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700'>
-                      <ShieldAlertIcon className='size-3' />
-                      NOT AUTHORIZED
-                    </span>
-                  ) : null}
                 </div>
-                {selectedMemoryId && identityState.isAuthenticated && !isOwner ? (
-                  <div className='mt-2 text-xs text-amber-700'>
-                    You are not authorized for this canister. Insert is disabled.
-                  </div>
-                ) : null}
               </div>
             </div>
             <div className='grid gap-4 md:grid-cols-2'>

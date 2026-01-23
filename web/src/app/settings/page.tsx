@@ -4,7 +4,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ShieldAlertIcon } from 'lucide-react'
 import { Principal } from '@dfinity/principal'
 
 import AppShell from '@/components/layout/app-shell'
@@ -19,7 +18,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { useIdentityState } from '@/components/providers/identity-provider'
-import { useMemories } from '@/hooks/use-memories'
+import { useMemoriesState } from '@/components/providers/memories-provider'
 import { useSelectedMemory } from '@/hooks/use-selected-memory'
 import { II_SESSION_TTL_NS } from '@/lib/ic-config'
 
@@ -35,7 +34,7 @@ const SESSION_TTL_OPTIONS = [
 
 const SettingsPage = () => {
   const identityState = useIdentityState()
-  const memories = useMemories(identityState.identity, identityState.isReady)
+  const memories = useMemoriesState()
   const { defaultMemoryId, setDefaultMemoryId } = useSelectedMemory()
   const [customCanisters, setCustomCanisters] = useState<string[]>([])
   const [newCanister, setNewCanister] = useState('')
@@ -189,7 +188,6 @@ const SettingsPage = () => {
             <div className='flex flex-col gap-2 text-sm'>
               {customCanisters.length ? (
                 customCanisters.map((canisterId) => {
-                  const isOwner = identityState.isAuthenticated && ownedCanisters.has(canisterId)
                   return (
                     <div
                       key={canisterId}
@@ -197,12 +195,6 @@ const SettingsPage = () => {
                     >
                       <div className='flex items-center gap-2'>
                         <span className='font-mono text-xs text-zinc-700'>{canisterId}</span>
-                        {identityState.isAuthenticated && !isOwner ? (
-                          <span className='inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700'>
-                            <ShieldAlertIcon className='size-3' />
-                            NOT AUTHORIZED
-                          </span>
-                        ) : null}
                       </div>
                       <Button variant='ghost' size='sm' onClick={() => handleRemoveCustom(canisterId)}>
                         Remove
